@@ -15,11 +15,23 @@
       "@kb-labs/plugin-runtime/*": [
         "../kb-labs-plugin/packages/plugin-runtime/src/*"
       ],
-      "@kb-labs/plugin-template-contracts": [
-        "packages/plugin-template-contracts/src/index.ts"
+      "@kb-labs/qa-contracts": [
+        "packages/qa-contracts/src/index.ts"
       ],
-      "@kb-labs/plugin-template-contracts/*": [
-        "packages/plugin-template-contracts/src/*"
+      "@kb-labs/qa-contracts/*": [
+        "packages/qa-contracts/src/*"
+      ],
+      "@kb-labs/qa-core": [
+        "packages/qa-core/src/index.ts"
+      ],
+      "@kb-labs/qa-core/*": [
+        "packages/qa-core/src/*"
+      ],
+      "@kb-labs/qa-cli": [
+        "packages/qa-cli/src/index.ts"
+      ],
+      "@kb-labs/qa-cli/*": [
+        "packages/qa-cli/src/*"
       ],
       "@kb-labs/sdk": [
         "../kb-labs-sdk/packages/sdk/src/index.ts"
