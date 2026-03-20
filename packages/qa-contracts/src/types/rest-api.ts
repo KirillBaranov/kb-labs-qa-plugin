@@ -164,7 +164,9 @@ export type QAEnrichedTrendsResponse = z.infer<typeof QAEnrichedTrendsResponseSc
 // Regressions API
 // ============================================================================
 
-export const QARegressionsRequestSchema = z.object({});
+export const QARegressionsRequestSchema = z.object({
+  scope: z.string().optional(),
+});
 
 export type QARegressionsRequest = z.infer<typeof QARegressionsRequestSchema>;
 
@@ -177,7 +179,9 @@ const RegressionEntrySchema = z.object({
 export const QARegressionsResponseSchema = z.object({
   hasRegressions: z.boolean(),
   regressions: z.array(RegressionEntrySchema),
+  scope: z.string().optional(),
 });
+
 
 export type QARegressionsResponse = z.infer<typeof QARegressionsResponseSchema>;
 
