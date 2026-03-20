@@ -1,5 +1,5 @@
 import { defineCommand, type PluginContextV3 } from '@kb-labs/sdk';
-import { loadHistory, analyzeTrends, buildTrendsReport } from '@kb-labs/qa-core';
+import { loadHistory, analyzeTrends, analyzeEnrichedTrends, buildTrendsReport } from '@kb-labs/qa-core';
 import type { QATrendsFlags } from './flags.js';
 
 type QATrendsInput = QATrendsFlags & { argv?: string[]; flags?: any };
@@ -19,7 +19,8 @@ export default defineCommand({
       const trends = analyzeTrends(history, window);
 
       if (flags.json) {
-        ui?.json?.({ trends, window, entries: history.length });
+        const enrichedTrends = analyzeEnrichedTrends(history, window);
+        ui?.json?.({ trends: enrichedTrends, historyCount: history.length, window });
         return { exitCode: 0 };
       }
 
