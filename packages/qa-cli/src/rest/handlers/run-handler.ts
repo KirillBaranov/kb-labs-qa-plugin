@@ -4,9 +4,9 @@
  * Runs QA checks (build, lint, types, tests) and optionally saves to history.
  */
 
-import { defineHandler, type PluginContextV3, type RestInput } from '@kb-labs/sdk';
+import { defineHandler, useConfig, type PluginContextV3, type RestInput } from '@kb-labs/sdk';
 import { runQA, createHistoryEntry, appendEntry } from '@kb-labs/qa-core';
-import type { QARunRequest, QARunResponse } from '@kb-labs/qa-contracts';
+import type { QARunRequest, QARunResponse, QAPluginConfig } from '@kb-labs/qa-contracts';
 import { CHECK_TYPES } from '@kb-labs/qa-contracts';
 
 export default defineHandler({
@@ -18,9 +18,16 @@ export default defineHandler({
     const startTime = Date.now();
     const body = input.body;
 
+    let config: QAPluginConfig | undefined;
+    try { config = await useConfig<QAPluginConfig>(); } catch { /* no platform context */ }
+
+    const checks = config?.checks;
+
     const { results } = await runQA({
       rootDir,
       skipChecks: body?.skipChecks,
+      packagesConfig: config?.packages,
+      checks,
     });
 
     // Determine overall status
