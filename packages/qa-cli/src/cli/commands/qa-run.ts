@@ -38,7 +38,10 @@ export default defineCommand({
       const checks = (scopeKey ? config?.scopes?.[scopeKey]?.checks : undefined)
         ?? config?.checks;
 
-      const skipChecks = (flags['skip-check'] as string[] | undefined) ?? [];
+      const rawSkip = flags['skip-check'];
+      const skipChecks: string[] = Array.isArray(rawSkip)
+        ? rawSkip as string[]
+        : rawSkip ? [rawSkip as string] : [];
 
       const startTime = Date.now();
       const { results, packages } = await runQA({
