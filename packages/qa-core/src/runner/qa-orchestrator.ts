@@ -1,5 +1,6 @@
 import type { QARunOptions, QAResults, QARunResult, CheckResult } from '@kb-labs/qa-contracts';
 import { getWorkspacePackages } from './workspace.js';
+import { runCustomChecks } from './custom-check-runner.js';
 import { loadCache, saveCache, updateCacheEntry } from './cache.js';
 import { runBuildCheck } from './build-runner.js';
 import { runLintCheck } from './lint-runner.js';
@@ -14,9 +15,20 @@ function emptyResult(): CheckResult {
 /**
  * Run all QA checks in order: build → lint → typeCheck → test.
  * Respects skip flags and package filters.
+ * If options.checks is provided, uses custom check runners instead of built-ins.
  */
 export async function runQA(options: QARunOptions): Promise<QARunResult> {
-  const { rootDir, skipBuild, skipLint, skipTypes, skipTests, noCache } = options;
+  const { rootDir, noCache } = options;
+
+  // Normalise skip list: lowercase, support aliases
+  const SKIP_ALIASES: Record<string, string> = {
+    types: 'typecheck',
+    'type-check': 'typecheck',
+    tests: 'test',
+  };
+  const skipSet = new Set(
+    (options.skipChecks ?? []).map(s => SKIP_ALIASES[s.toLowerCase()] ?? s.toLowerCase()),
+  );
 
   const filter = {
     package: options.package,
@@ -24,7 +36,7 @@ export async function runQA(options: QARunOptions): Promise<QARunResult> {
     scope: options.scope,
   };
 
-  const packages = getWorkspacePackages(rootDir, filter);
+  const packages = getWorkspacePackages(rootDir, filter, options.packagesConfig);
   let cache = noCache ? {} : loadCache(rootDir);
 
   const results: QAResults = {
@@ -34,41 +46,59 @@ export async function runQA(options: QARunOptions): Promise<QARunResult> {
     test: emptyResult(),
   };
 
-  // Build
-  if (!skipBuild) {
-    results.build = runBuildCheck({
-      rootDir,
-      packages,
-      noCache,
-      onProgress: (pkg, status) => options.onProgress?.('build', pkg, status),
-    });
-  }
+  if (options.checks && options.checks.length > 0) {
+    // Config-driven checks mode — filter out skipped check IDs
+    const activeChecks = skipSet.size > 0
+      ? options.checks.filter(c => !skipSet.has(c.id.toLowerCase()))
+      : options.checks;
 
-  // Lint
-  if (!skipLint) {
-    results.lint = runLintCheck({
-      rootDir,
+    const checkResults = runCustomChecks(
+      activeChecks,
       packages,
-      onProgress: (pkg, status) => options.onProgress?.('lint', pkg, status),
-    });
-  }
+      rootDir,
+      (checkId, pkg, status) => {
+        const phase = checkId === 'typeCheck' || checkId === 'typecheck' ? 'typeCheck'
+          : checkId === 'test' || checkId === 'tests' ? 'test'
+          : checkId === 'lint' ? 'lint'
+          : 'build';
+        options.onProgress?.(phase as any, pkg, status);
+      },
+    );
+    Object.assign(results, checkResults);
+  } else {
+    // Built-in runners mode — canonical IDs: build, lint, typecheck, test
+    if (!skipSet.has('build')) {
+      results.build = runBuildCheck({
+        rootDir,
+        packages,
+        noCache,
+        onProgress: (pkg, status) => options.onProgress?.('build', pkg, status),
+      });
+    }
 
-  // Type Check
-  if (!skipTypes) {
-    results.typeCheck = runTypeCheck({
-      rootDir,
-      packages,
-      onProgress: (pkg, status) => options.onProgress?.('typeCheck', pkg, status),
-    });
-  }
+    if (!skipSet.has('lint')) {
+      results.lint = runLintCheck({
+        rootDir,
+        packages,
+        onProgress: (pkg, status) => options.onProgress?.('lint', pkg, status),
+      });
+    }
 
-  // Tests
-  if (!skipTests) {
-    results.test = runTestCheck({
-      rootDir,
-      packages,
-      onProgress: (pkg, status) => options.onProgress?.('test', pkg, status),
-    });
+    if (!skipSet.has('typecheck')) {
+      results.typeCheck = runTypeCheck({
+        rootDir,
+        packages,
+        onProgress: (pkg, status) => options.onProgress?.('typeCheck', pkg, status),
+      });
+    }
+
+    if (!skipSet.has('test')) {
+      results.test = runTestCheck({
+        rootDir,
+        packages,
+        onProgress: (pkg, status) => options.onProgress?.('test', pkg, status),
+      });
+    }
   }
 
   // Update cache with current hashes

@@ -9,29 +9,18 @@ export const qaRunFlags = {
     description: 'Output JSON format',
     default: false,
   },
-  'skip-build': {
-    type: 'boolean',
-    description: 'Skip build checks',
-    default: false,
-  },
-  'skip-lint': {
-    type: 'boolean',
-    description: 'Skip lint checks',
-    default: false,
-  },
-  'skip-types': {
-    type: 'boolean',
-    description: 'Skip type checks',
-    default: false,
-  },
-  'skip-tests': {
-    type: 'boolean',
-    description: 'Skip test checks',
-    default: false,
+  'skip-check': {
+    type: 'array',
+    description: 'Skip specific check IDs (e.g. --skip-check build --skip-check lint)',
   },
   'no-cache': {
     type: 'boolean',
     description: 'Disable caching (force full run)',
+    default: false,
+  },
+  all: {
+    type: 'boolean',
+    description: 'Run all packages, ignoring affected analysis',
     default: false,
   },
   package: {

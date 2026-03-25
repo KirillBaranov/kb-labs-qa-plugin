@@ -20,10 +20,7 @@ export default defineHandler({
 
     const { results } = await runQA({
       rootDir,
-      skipBuild: body?.skipBuild,
-      skipLint: body?.skipLint,
-      skipTypes: body?.skipTypes,
-      skipTests: body?.skipTests,
+      skipChecks: body?.skipChecks,
     });
 
     // Determine overall status

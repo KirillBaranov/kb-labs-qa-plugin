@@ -1,4 +1,5 @@
 import type { SubmoduleInfo } from './submodule.js';
+import type { PackagesConfig, QACheckConfig } from './config.js';
 
 /**
  * Types of checks the QA plugin can run.
@@ -30,22 +31,22 @@ export type QAResults = Record<CheckType, CheckResult>;
 export interface QARunOptions {
   /** Root directory of the monorepo */
   rootDir: string;
-  /** Skip build check */
-  skipBuild?: boolean;
-  /** Skip lint check */
-  skipLint?: boolean;
-  /** Skip type check */
-  skipTypes?: boolean;
-  /** Skip test check */
-  skipTests?: boolean;
+  /** Skip specific check IDs (e.g. ['build', 'lint', 'typecheck', 'test']) */
+  skipChecks?: string[];
   /** Disable caching (force full run) */
   noCache?: boolean;
+  /** Run all packages, ignoring affected analysis */
+  all?: boolean;
   /** Filter by package name */
   package?: string;
   /** Filter by repo name */
   repo?: string;
   /** Filter by npm scope */
   scope?: string;
+  /** Package discovery config (paths/include/exclude from kb.config.json) */
+  packagesConfig?: PackagesConfig;
+  /** Custom checks to run. If provided, replaces built-in runners (build/lint/typeCheck/test). */
+  checks?: QACheckConfig[];
   /** Progress callback */
   onProgress?: (phase: CheckType, pkg: string, status: 'pass' | 'fail' | 'skip') => void;
 }

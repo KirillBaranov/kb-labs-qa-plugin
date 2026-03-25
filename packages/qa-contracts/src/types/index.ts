@@ -32,6 +32,8 @@ export type {
 
 export type {
   QAPluginConfig,
+  QACheckConfig,
+  PackagesConfig,
   CategoryConfig,
 } from './config.js';
 

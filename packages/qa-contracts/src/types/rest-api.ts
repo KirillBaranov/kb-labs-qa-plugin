@@ -223,10 +223,7 @@ const CheckResultSchema = z.object({
 });
 
 export const QARunRequestSchema = z.object({
-  skipBuild: z.boolean().optional(),
-  skipLint: z.boolean().optional(),
-  skipTypes: z.boolean().optional(),
-  skipTests: z.boolean().optional(),
+  skipChecks: z.array(z.string()).optional(),
   saveToHistory: z.boolean().optional(),
 });
 

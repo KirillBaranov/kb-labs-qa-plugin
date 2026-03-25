@@ -25,17 +25,31 @@ export default defineCommand({
       const flags = (input as any).flags ?? input;
       const rootDir = ctx.cwd;
 
+      // Load plugin config BEFORE running QA — needed for package discovery and checks
+      let config: QAPluginConfig | undefined;
+      try {
+        config = await useConfig<QAPluginConfig>();
+      } catch {
+        // Config not available (no platform context) — proceed without config
+      }
+
+      // Select checks: per-scope override → global checks → built-in runners
+      const scopeKey = flags.scope as string | undefined;
+      const checks = (scopeKey ? config?.scopes?.[scopeKey]?.checks : undefined)
+        ?? config?.checks;
+
+      const skipChecks = (flags['skip-check'] as string[] | undefined) ?? [];
+
       const startTime = Date.now();
       const { results, packages } = await runQA({
         rootDir,
-        skipBuild: !!flags['skip-build'],
-        skipLint: !!flags['skip-lint'],
-        skipTypes: !!flags['skip-types'],
-        skipTests: !!flags['skip-tests'],
+        skipChecks,
         noCache: !!flags['no-cache'],
         package: flags.package as string | undefined,
         repo: flags.repo as string | undefined,
-        scope: flags.scope as string | undefined,
+        scope: scopeKey,
+        packagesConfig: config?.packages,
+        checks,
       });
       const durationMs = Date.now() - startTime;
 
@@ -70,21 +84,21 @@ export default defineCommand({
       const baseline = loadBaseline(rootDir);
       const diff = baseline ? compareWithBaseline(results, baseline) : null;
 
-      // Load plugin config for categories
-      let config: QAPluginConfig | undefined;
-      try {
-        config = await useConfig<QAPluginConfig>('qa');
-      } catch {
-        // Config not available (no platform context) — proceed without categories
-      }
-
       const categoryMap = resolveCategories(packages, config);
       const grouped = groupResults(results, packages, categoryMap, config);
 
       if (flags.json) {
         const report = buildDetailedJsonReport(results, grouped, diff);
-        ui?.json?.(report);
+        ui?.json?.({ ...report, skippedChecks: skipChecks });
         return { exitCode: report.status === 'failed' ? 1 : 0 };
+      }
+
+      // Show skipped checks section for easier debugging
+      if (skipChecks.length > 0) {
+        ui?.success?.('Skipped checks', {
+          title: 'Skipped checks',
+          sections: [{ header: '', items: skipChecks.map(c => `  - ${c}`) }],
+        });
       }
 
       if (flags.summary) {
