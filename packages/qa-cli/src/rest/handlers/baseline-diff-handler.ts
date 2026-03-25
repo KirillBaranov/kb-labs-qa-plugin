@@ -7,7 +7,6 @@
 
 import { defineHandler, type PluginContextV3, type RestInput } from '@kb-labs/sdk';
 import { loadBaseline, loadLastRun, compareWithBaseline } from '@kb-labs/qa-core';
-import { CHECK_TYPES } from '@kb-labs/qa-contracts';
 import type { QABaselineDiffRequest, QABaselineDiffResponse } from '@kb-labs/qa-contracts';
 
 export default defineHandler({
@@ -22,13 +21,9 @@ export default defineHandler({
 
     // No baseline or no last run — return empty diff
     if (!baseline || !lastRun) {
-      const emptyDiff: QABaselineDiffResponse['diff'] = {} as QABaselineDiffResponse['diff'];
-      for (const ct of CHECK_TYPES) {
-        emptyDiff[ct] = { newFailures: [], fixed: [], stillFailing: [], delta: 0 };
-      }
       return {
         hasDiff: false,
-        diff: emptyDiff,
+        diff: {} as QABaselineDiffResponse['diff'],
         baseline: baseline ?? null,
         current: lastRun ? {
           timestamp: lastRun.timestamp,
@@ -40,8 +35,8 @@ export default defineHandler({
     const diff = compareWithBaseline(lastRun.results, baseline);
 
     // Check if there's any actual diff
-    const hasDiff = CHECK_TYPES.some((ct) => {
-      const d = diff[ct];
+    const hasDiff = Object.keys(diff).some((ct) => {
+      const d = diff[ct]!;
       return d.newFailures.length > 0 || d.fixed.length > 0;
     });
 
@@ -61,7 +56,7 @@ function buildSummaryFromResults(
   results: Record<string, { passed: string[]; failed: string[] }>,
 ): Record<string, { passed: number; failed: number }> {
   const summary: Record<string, { passed: number; failed: number }> = {};
-  for (const ct of CHECK_TYPES) {
+  for (const ct of Object.keys(results)) {
     const r = results[ct];
     summary[ct] = {
       passed: r?.passed.length ?? 0,

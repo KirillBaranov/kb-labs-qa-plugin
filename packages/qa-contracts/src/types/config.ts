@@ -32,6 +32,8 @@ export interface QACheckConfig {
    * - "repoRoot": run once in the workspace root
    */
   runIn?: 'perPackage' | 'scopePath' | 'repoRoot';
+  /** Display icon (emoji, e.g. "🔒"). Used in CLI output and REST API. */
+  icon?: string;
 }
 
 /**

@@ -1,7 +1,7 @@
 import { execSync } from 'node:child_process';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
-import { PATHS, HISTORY_MAX_ENTRIES, CHECK_TYPES } from '@kb-labs/qa-contracts';
+import { PATHS, HISTORY_MAX_ENTRIES } from '@kb-labs/qa-contracts';
 import type { HistoryEntry, QAResults, SubmoduleInfo, WorkspacePackage } from '@kb-labs/qa-contracts';
 
 /**
@@ -49,13 +49,13 @@ export function createHistoryEntry(
     // git not available
   }
 
-  const hasFailures = CHECK_TYPES.some((ct) => results[ct].failed.length > 0);
+  const hasFailures = Object.values(results).some(r => r.failed.length > 0);
 
   const summary = {} as HistoryEntry['summary'];
   const failedPackages = {} as HistoryEntry['failedPackages'];
 
-  for (const ct of CHECK_TYPES) {
-    const r = results[ct];
+  for (const ct of Object.keys(results)) {
+    const r = results[ct]!;
     summary[ct] = {
       passed: r.passed.length,
       failed: r.failed.length,

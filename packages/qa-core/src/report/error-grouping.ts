@@ -1,12 +1,11 @@
-import type { QAResults, CheckType } from '@kb-labs/qa-contracts';
+import type { QAResults } from '@kb-labs/qa-contracts';
 import type { ErrorGroup, QAErrorGroupsResponse } from '@kb-labs/qa-contracts';
-import { CHECK_TYPES } from '@kb-labs/qa-contracts';
 
 /**
  * Extract an error pattern from raw error text.
  * Tries to identify ESLint rules, TS error codes, or common patterns.
  */
-function extractPattern(errorText: string, checkType: CheckType): string {
+function extractPattern(errorText: string, checkType: string): string {
   if (checkType === 'lint') {
     // ESLint: look for rule names like "@typescript-eslint/no-explicit-any"
     const ruleMatch = errorText.match(/(\S+\/[\w-]+|no-[\w-]+)/);
@@ -44,8 +43,8 @@ export function groupErrors(results: QAResults): QAErrorGroupsResponse {
   const groupMap = new Map<string, ErrorGroup>();
   let ungrouped = 0;
 
-  for (const ct of CHECK_TYPES) {
-    const check = results[ct];
+  for (const ct of Object.keys(results)) {
+    const check = results[ct]!;
     if (!check.errors) {continue;}
 
     for (const [pkgName, errorText] of Object.entries(check.errors)) {

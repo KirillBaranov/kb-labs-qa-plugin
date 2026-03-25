@@ -1,4 +1,4 @@
-import type { CheckType } from './check-result.js';
+// CheckType is now `string`
 
 /**
  * Per-package status across all check types.
@@ -7,7 +7,7 @@ export interface PackageStatus {
   name: string;
   repo: string;
   category: string;
-  checks: Record<CheckType, 'passed' | 'failed' | 'skipped'>;
+  checks: Record<string, 'passed' | 'failed' | 'skipped'>;
   errors: Record<string, string>;
 }
 
@@ -44,5 +44,5 @@ export interface GroupSummary {
   passed: number;
   /** Packages where at least one check failed */
   failed: number;
-  checks: Record<CheckType, { passed: number; failed: number; skipped: number }>;
+  checks: Record<string, { passed: number; failed: number; skipped: number }>;
 }

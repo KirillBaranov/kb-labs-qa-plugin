@@ -6,7 +6,7 @@
 
 import { defineHandler, type PluginContextV3, type RestInput } from '@kb-labs/sdk';
 import { loadBaseline, loadHistory } from '@kb-labs/qa-core';
-import { CHECK_TYPES, CHECK_LABELS } from '@kb-labs/qa-contracts';
+import { getCheckLabel, getCheckIcon } from '@kb-labs/qa-contracts';
 import type { QASummaryRequest, QASummaryResponse } from '@kb-labs/qa-contracts';
 
 export default defineHandler({
@@ -18,9 +18,11 @@ export default defineHandler({
     const history = loadHistory(ctx.cwd);
     const latest = history.length > 0 ? history[history.length - 1] : null;
 
-    const checks = CHECK_TYPES.map((ct) => ({
+    const checkKeys = latest ? Object.keys(latest.summary) : [];
+    const checks = checkKeys.map((ct) => ({
       checkType: ct,
-      label: CHECK_LABELS[ct] ?? ct,
+      label: getCheckLabel(ct),
+      icon: getCheckIcon(ct),
       passed: latest?.summary[ct]?.passed ?? 0,
       failed: latest?.summary[ct]?.failed ?? 0,
       skipped: latest?.summary[ct]?.skipped ?? 0,

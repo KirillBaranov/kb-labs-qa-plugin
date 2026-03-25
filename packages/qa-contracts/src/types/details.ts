@@ -1,4 +1,4 @@
-import type { CheckType } from './check-result.js';
+// CheckType is now `string`
 import type { SubmoduleInfo } from './submodule.js';
 
 /**
@@ -28,7 +28,7 @@ export interface QADetailsResponse {
   /** Per-repo submodule state at time of run */
   submodules?: Record<string, SubmoduleInfo>;
   /** Per-check-type breakdown with package details */
-  checks: Record<CheckType, {
+  checks: Record<string, {
     passed: PackageCheckDetail[];
     failed: PackageCheckDetail[];
     skipped: PackageCheckDetail[];

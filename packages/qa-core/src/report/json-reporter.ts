@@ -1,5 +1,4 @@
 import type { QAResults, QAReport, BaselineDiff, GroupedResults } from '@kb-labs/qa-contracts';
-import { CHECK_TYPES } from '@kb-labs/qa-contracts';
 
 /**
  * Build a structured JSON report from QA results.
@@ -8,14 +7,14 @@ export function buildJsonReport(
   results: QAResults,
   diff?: BaselineDiff | null,
 ): QAReport {
-  const hasFailures = CHECK_TYPES.some((ct) => results[ct].failed.length > 0);
+  const hasFailures = Object.values(results).some((r) => r.failed.length > 0);
 
   const summary = {} as QAReport['summary'];
   const failures = {} as QAReport['failures'];
   const errors = {} as QAReport['errors'];
 
-  for (const ct of CHECK_TYPES) {
-    const r = results[ct];
+  for (const ct of Object.keys(results)) {
+    const r = results[ct]!;
     const total = r.passed.length + r.failed.length + r.skipped.length;
     summary[ct] = {
       total,

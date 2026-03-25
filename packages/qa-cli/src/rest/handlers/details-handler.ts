@@ -7,7 +7,6 @@
 
 import { defineHandler, type PluginContextV3, type RestInput } from '@kb-labs/sdk';
 import { loadLastRun } from '@kb-labs/qa-core';
-import { CHECK_TYPES } from '@kb-labs/qa-contracts';
 import type { QADetailsRequest, QADetailsResponse } from '@kb-labs/qa-contracts';
 
 export default defineHandler({
@@ -19,14 +18,10 @@ export default defineHandler({
 
     if (!lastRun) {
       // No last run data — return empty structure
-      const emptyChecks: Record<string, { passed: never[]; failed: never[]; skipped: never[] }> = {};
-      for (const ct of CHECK_TYPES) {
-        emptyChecks[ct] = { passed: [], failed: [], skipped: [] };
-      }
       return {
         timestamp: null,
         git: null,
-        checks: emptyChecks as QADetailsResponse['checks'],
+        checks: {} as QADetailsResponse['checks'],
       };
     }
 
@@ -50,8 +45,8 @@ export default defineHandler({
 
     const checks: QADetailsResponse['checks'] = {} as QADetailsResponse['checks'];
 
-    for (const ct of CHECK_TYPES) {
-      const checkResult = results[ct];
+    for (const ct of Object.keys(results)) {
+      const checkResult = results[ct]!;
       const passed = checkResult.passed.map((name) => {
         const pkg = pkgMap.get(name);
         return {

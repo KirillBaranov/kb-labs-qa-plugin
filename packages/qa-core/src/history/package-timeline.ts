@@ -1,6 +1,5 @@
 import type { HistoryEntry, CheckType } from '@kb-labs/qa-contracts';
 import type { PackageTimelineEntry, PackageTimelineResponse } from '@kb-labs/qa-contracts';
-import { CHECK_TYPES } from '@kb-labs/qa-contracts';
 
 /**
  * Build a timeline for a specific package across QA history.
@@ -20,11 +19,11 @@ export function getPackageTimeline(
     const checks: Record<string, 'passed' | 'failed' | 'skipped'> = {};
     let found = false;
 
-    for (const ct of CHECK_TYPES) {
-      const failedList = h.failedPackages[ct];
+    for (const ct of Object.keys(h.summary)) {
+      const failedList = h.failedPackages[ct] ?? [];
       const summaryEntry = h.summary[ct];
 
-      if (failedList?.includes(packageName)) {
+      if (failedList.includes(packageName)) {
         checks[ct] = 'failed';
         found = true;
       } else if (summaryEntry && (summaryEntry.passed > 0 || summaryEntry.failed > 0)) {
@@ -56,12 +55,17 @@ export function getPackageTimeline(
     });
   }
 
-  // Compute flaky score per check type
+  // Compute flaky score per check type — collect all check types across entries
+  const allCheckTypes = new Set<string>();
+  for (const entry of entries) {
+    for (const k of Object.keys(entry.checks)) {allCheckTypes.add(k);}
+  }
+
   const flakyChecks: CheckType[] = [];
   let totalFlips = 0;
   let totalTransitions = 0;
 
-  for (const ct of CHECK_TYPES) {
+  for (const ct of allCheckTypes) {
     let flips = 0;
     let transitions = 0;
     for (let i = 1; i < entries.length; i++) {
@@ -69,12 +73,12 @@ export function getPackageTimeline(
       const currEntry = entries[i]!; // safe: loop bounds
       const prev = prevEntry.checks[ct];
       const curr = currEntry.checks[ct];
-      if (prev === 'skipped' || curr === 'skipped') {continue;}
+      if (prev === 'skipped' || curr === 'skipped' || !prev || !curr) {continue;}
       transitions++;
       if (prev !== curr) {flips++;}
     }
     if (transitions > 0 && flips / transitions > 0.3) {
-      flakyChecks.push(ct);
+      flakyChecks.push(ct as CheckType);
     }
     totalFlips += flips;
     totalTransitions += transitions;
@@ -86,7 +90,7 @@ export function getPackageTimeline(
   let firstFailure: string | undefined;
   for (let i = entries.length - 1; i >= 0; i--) {
     const entry = entries[i]!; // safe: loop bounds
-    const hasFail = CHECK_TYPES.some((ct) => entry.checks[ct] === 'failed');
+    const hasFail = Object.values(entry.checks).some((v) => v === 'failed');
     if (hasFail) {
       firstFailure = entry.timestamp;
     }
@@ -97,12 +101,12 @@ export function getPackageTimeline(
   let streakCount = 0;
   const latest = entries[0];
   if (latest) {
-    const hasFail = CHECK_TYPES.some((ct) => latest.checks[ct] === 'failed');
+    const hasFail = Object.values(latest.checks).some((v) => v === 'failed');
     streakStatus = hasFail ? 'failing' : 'passing';
     streakCount = 1;
     for (let i = 1; i < entries.length; i++) {
       const entry = entries[i]!; // safe: loop bounds
-      const eFail = CHECK_TYPES.some((ct) => entry.checks[ct] === 'failed');
+      const eFail = Object.values(entry.checks).some((v) => v === 'failed');
       const eStatus = eFail ? 'failing' : 'passing';
       if (eStatus === streakStatus) {
         streakCount++;

@@ -1,4 +1,4 @@
-import type { CheckType } from './check-result.js';
+// CheckType is now `string`
 
 /**
  * A single entry in a package's QA timeline.
@@ -11,7 +11,7 @@ export interface PackageTimelineEntry {
   /** Submodule commit hash (if available) */
   submoduleCommit?: string;
   /** Per-check status for this package */
-  checks: Record<CheckType, 'passed' | 'failed' | 'skipped'>;
+  checks: Record<string, 'passed' | 'failed' | 'skipped'>;
 }
 
 /**
@@ -27,7 +27,7 @@ export interface PackageTimelineResponse {
   /** Flaky score: 0-1, higher = more flaky (flip-flops between pass/fail) */
   flakyScore: number;
   /** Which check types exhibit flaky behavior */
-  flakyChecks: CheckType[];
+  flakyChecks: string[];
   /** When this package first appeared in failed state */
   firstFailure?: string;
   /** Current streak (passing or failing, and how many consecutive runs) */

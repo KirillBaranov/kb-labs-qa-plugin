@@ -39,12 +39,7 @@ export async function runQA(options: QARunOptions): Promise<QARunResult> {
   const packages = getWorkspacePackages(rootDir, filter, options.packagesConfig);
   let cache = noCache ? {} : loadCache(rootDir);
 
-  const results: QAResults = {
-    build: emptyResult(),
-    lint: emptyResult(),
-    typeCheck: emptyResult(),
-    test: emptyResult(),
-  };
+  const results: QAResults = {};
 
   if (options.checks && options.checks.length > 0) {
     // Config-driven checks mode — filter out skipped check IDs
@@ -57,11 +52,7 @@ export async function runQA(options: QARunOptions): Promise<QARunResult> {
       packages,
       rootDir,
       (checkId, pkg, status) => {
-        const phase = checkId === 'typeCheck' || checkId === 'typecheck' ? 'typeCheck'
-          : checkId === 'test' || checkId === 'tests' ? 'test'
-          : checkId === 'lint' ? 'lint'
-          : 'build';
-        options.onProgress?.(phase as any, pkg, status);
+        options.onProgress?.(checkId, pkg, status);
       },
     );
     Object.assign(results, checkResults);

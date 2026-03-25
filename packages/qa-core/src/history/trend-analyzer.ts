@@ -1,5 +1,16 @@
 import type { HistoryEntry, TrendResult, EnrichedTrendResult, TrendChangelogEntry } from '@kb-labs/qa-contracts';
-import { CHECK_TYPES, TRENDS_WINDOW } from '@kb-labs/qa-contracts';
+import { TRENDS_WINDOW, getCheckLabel, getCheckIcon } from '@kb-labs/qa-contracts';
+
+/**
+ * Collect all unique check type keys across a set of history entries.
+ */
+function collectCheckTypes(entries: HistoryEntry[]): string[] {
+  const s = new Set<string>();
+  for (const e of entries) {
+    for (const k of Object.keys(e.summary)) {s.add(k);}
+  }
+  return [...s];
+}
 
 /**
  * Analyze trends over a window of history entries.
@@ -17,9 +28,9 @@ export function analyzeTrends(
 
   const results: TrendResult[] = [];
 
-  for (const ct of CHECK_TYPES) {
-    const previous = first.summary[ct].failed;
-    const current = last.summary[ct].failed;
+  for (const ct of collectCheckTypes([first, last])) {
+    const previous = first.summary[ct]?.failed ?? 0;
+    const current = last.summary[ct]?.failed ?? 0;
     const delta = current - previous;
 
     let trend: TrendResult['trend'];
@@ -27,7 +38,7 @@ export function analyzeTrends(
     else if (delta < 0) {trend = 'improvement';}
     else {trend = 'no-change';}
 
-    results.push({ checkType: ct, previous, current, delta, trend });
+    results.push({ checkType: ct, label: getCheckLabel(ct), icon: getCheckIcon(ct), previous, current, delta, trend });
   }
 
   return results;
@@ -53,16 +64,16 @@ export function analyzeEnrichedTrends(
 
   const results: EnrichedTrendResult[] = [];
 
-  for (const ct of CHECK_TYPES) {
+  for (const ct of collectCheckTypes(windowEntries)) {
     // Build time-series: map each entry to a data point
     const timeSeries = windowEntries.map((entry) => ({
       timestamp: entry.timestamp,
       gitCommit: entry.git.commit,
       gitBranch: entry.git.branch,
       gitMessage: entry.git.message,
-      passed: entry.summary[ct].passed,
-      failed: entry.summary[ct].failed,
-      skipped: entry.summary[ct].skipped,
+      passed: entry.summary[ct]?.passed ?? 0,
+      failed: entry.summary[ct]?.failed ?? 0,
+      skipped: entry.summary[ct]?.skipped ?? 0,
     }));
 
     // Build changelog: diff failedPackages between consecutive entries
@@ -73,8 +84,8 @@ export function analyzeEnrichedTrends(
       const prev = windowEntries[i - 1]!;
       const curr = windowEntries[i]!;
 
-      const prevFailed = new Set(prev.failedPackages[ct]);
-      const currFailed = curr.failedPackages[ct];
+      const prevFailed = new Set(prev.failedPackages[ct] ?? []);
+      const currFailed = curr.failedPackages[ct] ?? [];
       const currFailedSet = new Set(currFailed);
 
       const newFailures = currFailed.filter((p) => !prevFailed.has(p));
@@ -97,8 +108,8 @@ export function analyzeEnrichedTrends(
     }
 
     // Summary metrics
-    const previous = first.summary[ct].failed;
-    const current = last.summary[ct].failed;
+    const previous = first.summary[ct]?.failed ?? 0;
+    const current = last.summary[ct]?.failed ?? 0;
     const delta = current - previous;
 
     let trend: EnrichedTrendResult['trend'];
@@ -113,6 +124,8 @@ export function analyzeEnrichedTrends(
 
     results.push({
       checkType: ct,
+      label: getCheckLabel(ct),
+      icon: getCheckIcon(ct),
       timeSeries,
       changelog,
       current,

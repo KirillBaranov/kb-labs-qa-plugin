@@ -1,4 +1,4 @@
-import type { CheckType } from './check-result.js';
+// CheckType is now `string`
 import type { BaselineDiff } from './baseline.js';
 
 /**
@@ -17,8 +17,8 @@ export interface ReportSummary {
 export interface QAReport {
   status: 'passed' | 'failed';
   timestamp: string;
-  summary: Record<CheckType, ReportSummary>;
-  failures: Record<CheckType, string[]>;
-  errors: Record<CheckType, Record<string, string>>;
+  summary: Record<string, ReportSummary>;
+  failures: Record<string, string[]>;
+  errors: Record<string, Record<string, string>>;
   baseline: BaselineDiff | null;
 }

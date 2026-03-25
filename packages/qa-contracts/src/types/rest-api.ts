@@ -8,7 +8,7 @@ import { z } from 'zod';
 // Common schemas
 // ============================================================================
 
-const CheckTypeSchema = z.enum(['build', 'lint', 'typeCheck', 'test']);
+const CheckTypeSchema = z.string();
 
 const GitInfoSchema = z.object({
   commit: z.string(),
@@ -36,6 +36,7 @@ export type QASummaryRequest = z.infer<typeof QASummaryRequestSchema>;
 export const QASummaryCheckSchema = z.object({
   checkType: z.string(),
   label: z.string(),
+  icon: z.string().optional(),
   passed: z.number(),
   failed: z.number(),
   skipped: z.number(),
@@ -106,6 +107,8 @@ export type QATrendsRequest = z.infer<typeof QATrendsRequestSchema>;
 
 const TrendResultSchema = z.object({
   checkType: CheckTypeSchema,
+  label: z.string().optional(),
+  icon: z.string().optional(),
   previous: z.number(),
   current: z.number(),
   delta: z.number(),
@@ -143,6 +146,8 @@ const TrendChangelogEntrySchema = z.object({
 
 const EnrichedTrendResultSchema = z.object({
   checkType: CheckTypeSchema,
+  label: z.string().optional(),
+  icon: z.string().optional(),
   timeSeries: z.array(TrendTimeSeriesPointSchema),
   changelog: z.array(TrendChangelogEntrySchema),
   current: z.number(),
@@ -282,7 +287,7 @@ export type QADetailsResponse = z.infer<typeof QADetailsResponseSchema>;
 // ============================================================================
 
 export const QARunCheckRequestSchema = z.object({
-  checkType: z.enum(['lint', 'typeCheck', 'test']),
+  checkType: z.string(),
   repo: z.string().optional(),
   package: z.string().optional(),
 });

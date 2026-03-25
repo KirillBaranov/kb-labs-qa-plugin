@@ -1,5 +1,4 @@
 import type { QAResults, BaselineSnapshot, BaselineDiff } from '@kb-labs/qa-contracts';
-import { CHECK_TYPES } from '@kb-labs/qa-contracts';
 
 /**
  * Compare current QA results with a baseline snapshot.
@@ -11,9 +10,11 @@ export function compareWithBaseline(
 ): BaselineDiff {
   const diff = {} as BaselineDiff;
 
-  for (const ct of CHECK_TYPES) {
-    const current = new Set(results[ct].failed);
-    const baselineFailed = new Set(baseline.results[ct].failedPackages);
+  const checkTypes = [...new Set([...Object.keys(results), ...Object.keys(baseline.results)])];
+
+  for (const ct of checkTypes) {
+    const current = new Set(results[ct]?.failed ?? []);
+    const baselineFailed = new Set(baseline.results[ct]?.failedPackages ?? []);
 
     const newFailures = [...current].filter((p) => !baselineFailed.has(p));
     const fixed = [...baselineFailed].filter((p) => !current.has(p));

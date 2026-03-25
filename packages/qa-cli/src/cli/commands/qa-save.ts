@@ -1,6 +1,5 @@
 import { defineCommand, type PluginContextV3 } from '@kb-labs/sdk';
 import { runQA, createHistoryEntry, appendEntry } from '@kb-labs/qa-core';
-import { CHECK_TYPES } from '@kb-labs/qa-contracts';
 import type { QASaveFlags } from './flags.js';
 
 type QASaveInput = QASaveFlags & { argv?: string[]; flags?: any };
@@ -24,8 +23,8 @@ export default defineCommand({
       // Track analytics events
       const analytics = ctx.platform.analytics;
       if (analytics) {
-        for (const ct of CHECK_TYPES) {
-          const r = results[ct];
+        for (const ct of Object.keys(results)) {
+          const r = results[ct]!;
           await analytics.track('qa.check.completed', {
             checkType: ct,
             status: r.failed.length > 0 ? 'failed' : 'passed',
@@ -36,15 +35,16 @@ export default defineCommand({
             gitBranch: entry.git.branch,
           });
         }
+        const checkKeys = Object.keys(results);
         await analytics.track('qa.run.completed', {
           status: entry.status,
-          buildPassed: results.build.passed.length, buildFailed: results.build.failed.length,
-          lintPassed: results.lint.passed.length, lintFailed: results.lint.failed.length,
-          typeCheckPassed: results.typeCheck.passed.length, typeCheckFailed: results.typeCheck.failed.length,
-          testPassed: results.test.passed.length, testFailed: results.test.failed.length,
-          totalPassed: CHECK_TYPES.reduce((s, ct) => s + results[ct].passed.length, 0),
-          totalFailed: CHECK_TYPES.reduce((s, ct) => s + results[ct].failed.length, 0),
-          totalSkipped: CHECK_TYPES.reduce((s, ct) => s + results[ct].skipped.length, 0),
+          ...Object.fromEntries(checkKeys.flatMap((ct) => [
+            [`${ct}Passed`, results[ct]!.passed.length],
+            [`${ct}Failed`, results[ct]!.failed.length],
+          ])),
+          totalPassed: checkKeys.reduce((s, ct) => s + results[ct]!.passed.length, 0),
+          totalFailed: checkKeys.reduce((s, ct) => s + results[ct]!.failed.length, 0),
+          totalSkipped: checkKeys.reduce((s, ct) => s + results[ct]!.skipped.length, 0),
           gitCommit: entry.git.commit, gitBranch: entry.git.branch,
           durationMs,
         });

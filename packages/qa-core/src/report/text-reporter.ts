@@ -1,5 +1,5 @@
-import type { QAResults, BaselineDiff, HistoryEntry, TrendResult, RegressionResult, BaselineSnapshot, GroupedResults, CheckType } from '@kb-labs/qa-contracts';
-import { CHECK_TYPES, CHECK_LABELS, CHECK_ICONS } from '@kb-labs/qa-contracts';
+import type { QAResults, BaselineDiff, HistoryEntry, TrendResult, RegressionResult, BaselineSnapshot, GroupedResults } from '@kb-labs/qa-contracts';
+import { CHECK_LABELS, CHECK_ICONS } from '@kb-labs/qa-contracts';
 
 export interface ReportSection {
   header: string;
@@ -22,8 +22,8 @@ export function buildRunReport(results: QAResults, diff?: BaselineDiff | null): 
   const sections: ReportSection[] = [];
 
   const summaryLines: string[] = [];
-  for (const ct of CHECK_TYPES) {
-    const r = results[ct];
+  for (const ct of Object.keys(results)) {
+    const r = results[ct]!;
     const total = r.passed.length + r.failed.length + r.skipped.length;
     const pct = total > 0 ? Math.round((r.passed.length / total) * 100) : 100;
     const status = r.failed.length === 0 ? 'PASS' : 'FAIL';
@@ -44,8 +44,8 @@ export function buildRunReport(results: QAResults, diff?: BaselineDiff | null): 
 
   if (diff) {
     const diffLines: string[] = [];
-    for (const ct of CHECK_TYPES) {
-      const d = diff[ct];
+    for (const ct of Object.keys(diff)) {
+      const d = diff[ct]!;
       if (d.newFailures.length > 0) {
         diffLines.push(`${icon(ct)} ${label(ct)}: +${d.newFailures.length} new failures`);
         for (const pkg of d.newFailures) {
@@ -64,10 +64,10 @@ export function buildRunReport(results: QAResults, diff?: BaselineDiff | null): 
   let totalPassed = 0;
   let totalFailed = 0;
   let totalSkipped = 0;
-  for (const ct of CHECK_TYPES) {
-    totalPassed += results[ct].passed.length;
-    totalFailed += results[ct].failed.length;
-    totalSkipped += results[ct].skipped.length;
+  for (const ct of Object.keys(results)) {
+    totalPassed += results[ct]!.passed.length;
+    totalFailed += results[ct]!.failed.length;
+    totalSkipped += results[ct]!.skipped.length;
   }
   sections.push({
     header: 'Totals',
@@ -87,8 +87,8 @@ export function buildHistoryTable(history: HistoryEntry[], limit: number = 20): 
   for (const entry of entries) {
     const date = new Date(entry.timestamp).toLocaleDateString();
     const status = entry.status === 'passed' ? 'PASS' : 'FAIL';
-    const summary = CHECK_TYPES.map((ct) => {
-      const s = entry.summary[ct];
+    const summary = Object.keys(entry.summary).map((ct) => {
+      const s = entry.summary[ct]!;
       return `${icon(ct)} ${s.failed}F`;
     }).join(' ');
 
@@ -169,8 +169,8 @@ export function buildBaselineReport(baseline: BaselineSnapshot | null): ReportSe
     '',
   ];
 
-  for (const ct of CHECK_TYPES) {
-    const r = baseline.results[ct];
+  for (const ct of Object.keys(baseline.results)) {
+    const r = baseline.results[ct]!;
     lines.push(`${icon(ct)} ${label(ct).padEnd(12)} ${r.passed} passed, ${r.failed} failed`);
     if (r.failedPackages.length > 0) {
       const shown = r.failedPackages.slice(0, 3);
@@ -189,7 +189,7 @@ export function buildBaselineReport(baseline: BaselineSnapshot | null): ReportSe
 /**
  * Format a check status tag. Failed checks are UPPERCASED.
  */
-function checkTag(status: 'passed' | 'failed' | 'skipped', ct: CheckType): string {
+function checkTag(status: 'passed' | 'failed' | 'skipped', ct: string): string {
   const short = ct === 'typeCheck' ? 'types' : ct;
   if (status === 'failed') {return short.toUpperCase();}
   if (status === 'skipped') {return `-${short}-`;}
@@ -225,21 +225,21 @@ export function buildDetailedRunReport(grouped: GroupedResults, diff?: BaselineD
 
       // Sort packages: failed first, then passed, then skipped
       const sorted = [...repo.packages].sort((a, b) => {
-        const aFail = CHECK_TYPES.some((ct) => a.checks[ct] === 'failed') ? 0 : 1;
-        const bFail = CHECK_TYPES.some((ct) => b.checks[ct] === 'failed') ? 0 : 1;
+        const aFail = Object.values(a.checks).some((v) => v === 'failed') ? 0 : 1;
+        const bFail = Object.values(b.checks).some((v) => v === 'failed') ? 0 : 1;
         if (aFail !== bFail) {return aFail - bFail;}
         return a.name.localeCompare(b.name);
       });
 
       for (const pkg of sorted) {
-        const hasFail = CHECK_TYPES.some((ct) => pkg.checks[ct] === 'failed');
+        const hasFail = Object.values(pkg.checks).some((v) => v === 'failed');
         const status = hasFail ? 'FAIL' : 'PASS';
-        const tags = CHECK_TYPES.map((ct) => checkTag(pkg.checks[ct], ct)).join(' ');
+        const tags = Object.keys(pkg.checks).map((ct) => checkTag(pkg.checks[ct]!, ct)).join(' ');
         lines.push(`    ${status} ${pkg.name.padEnd(40)} ${tags}`);
 
         // Show error details for failed checks
         if (hasFail) {
-          for (const ct of CHECK_TYPES) {
+          for (const ct of Object.keys(pkg.checks)) {
             if (pkg.checks[ct] === 'failed') {
               const raw = (pkg.errors[ct] ?? '').trim();
               // Find first meaningful error line (skip empty, skip "Command failed:" prefix)
@@ -270,8 +270,8 @@ export function buildDetailedRunReport(grouped: GroupedResults, diff?: BaselineD
   // Baseline diff section (reuse from buildRunReport)
   if (diff) {
     const diffLines: string[] = [];
-    for (const ct of CHECK_TYPES) {
-      const d = diff[ct];
+    for (const ct of Object.keys(diff)) {
+      const d = diff[ct]!;
       if (d.newFailures.length > 0) {
         diffLines.push(`${icon(ct)} ${label(ct)}: +${d.newFailures.length} new failures`);
         for (const pkg of d.newFailures) {

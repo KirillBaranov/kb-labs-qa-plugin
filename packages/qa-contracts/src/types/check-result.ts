@@ -4,7 +4,7 @@ import type { PackagesConfig, QACheckConfig } from './config.js';
 /**
  * Types of checks the QA plugin can run.
  */
-export type CheckType = 'build' | 'lint' | 'typeCheck' | 'test';
+export type CheckType = string;
 
 /**
  * Result of a single check type across all packages.
@@ -23,7 +23,7 @@ export interface CheckResult {
 /**
  * Combined results of all QA check types.
  */
-export type QAResults = Record<CheckType, CheckResult>;
+export type QAResults = Record<string, CheckResult>;
 
 /**
  * Options for running QA checks.
@@ -48,7 +48,7 @@ export interface QARunOptions {
   /** Custom checks to run. If provided, replaces built-in runners (build/lint/typeCheck/test). */
   checks?: QACheckConfig[];
   /** Progress callback */
-  onProgress?: (phase: CheckType, pkg: string, status: 'pass' | 'fail' | 'skip') => void;
+  onProgress?: (phase: string, pkg: string, status: 'pass' | 'fail' | 'skip') => void;
 }
 
 /**

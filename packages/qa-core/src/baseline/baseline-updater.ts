@@ -1,6 +1,5 @@
 import { execSync } from 'node:child_process';
 import type { BaselineSnapshot, QAResults } from '@kb-labs/qa-contracts';
-import { CHECK_TYPES } from '@kb-labs/qa-contracts';
 import { runQA } from '../runner/qa-orchestrator.js';
 import { saveBaseline } from './baseline-store.js';
 
@@ -34,8 +33,8 @@ export function createBaselineFromResults(
     results: {} as BaselineSnapshot['results'],
   };
 
-  for (const ct of CHECK_TYPES) {
-    const r = results[ct];
+  for (const ct of Object.keys(results)) {
+    const r = results[ct]!;
     snapshot.results[ct] = {
       passed: r.passed.length,
       failed: r.failed.length,

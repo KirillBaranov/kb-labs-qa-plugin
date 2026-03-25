@@ -1,6 +1,5 @@
 import { defineCommand, useConfig, type PluginContextV3 } from '@kb-labs/sdk';
 import type { QAPluginConfig } from '@kb-labs/qa-contracts';
-import { CHECK_TYPES } from '@kb-labs/qa-contracts';
 import {
   runQA,
   compareWithBaseline,
@@ -60,8 +59,8 @@ export default defineCommand({
       const analytics = ctx.platform.analytics;
       if (analytics) {
         const hasFails = Object.values(results).some((r) => r.failed.length > 0);
-        for (const ct of CHECK_TYPES) {
-          const r = results[ct];
+        for (const ct of Object.keys(results)) {
+          const r = results[ct]!;
           await analytics.track('qa.check.completed', {
             checkType: ct,
             status: r.failed.length > 0 ? 'failed' : 'passed',
@@ -70,15 +69,16 @@ export default defineCommand({
             skipped: r.skipped.length,
           });
         }
+        const checkKeys = Object.keys(results);
         await analytics.track('qa.run.completed', {
           status: hasFails ? 'failed' : 'passed',
-          buildPassed: results.build.passed.length, buildFailed: results.build.failed.length,
-          lintPassed: results.lint.passed.length, lintFailed: results.lint.failed.length,
-          typeCheckPassed: results.typeCheck.passed.length, typeCheckFailed: results.typeCheck.failed.length,
-          testPassed: results.test.passed.length, testFailed: results.test.failed.length,
-          totalPassed: CHECK_TYPES.reduce((s, ct) => s + results[ct].passed.length, 0),
-          totalFailed: CHECK_TYPES.reduce((s, ct) => s + results[ct].failed.length, 0),
-          totalSkipped: CHECK_TYPES.reduce((s, ct) => s + results[ct].skipped.length, 0),
+          ...Object.fromEntries(checkKeys.flatMap((ct) => [
+            [`${ct}Passed`, results[ct]!.passed.length],
+            [`${ct}Failed`, results[ct]!.failed.length],
+          ])),
+          totalPassed: checkKeys.reduce((s, ct) => s + results[ct]!.passed.length, 0),
+          totalFailed: checkKeys.reduce((s, ct) => s + results[ct]!.failed.length, 0),
+          totalSkipped: checkKeys.reduce((s, ct) => s + results[ct]!.skipped.length, 0),
           durationMs,
         });
       }

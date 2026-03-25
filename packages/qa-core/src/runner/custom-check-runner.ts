@@ -74,12 +74,7 @@ export function runCustomChecks(
     tests: 'test',
   };
 
-  const results: QAResults = {
-    build: emptyResult(),
-    lint: emptyResult(),
-    typeCheck: emptyResult(),
-    test: emptyResult(),
-  };
+  const results: QAResults = {};
 
   // Collect unique scope paths (repo root dirs) for scopePath mode
   const scopePaths = new Map<string, string>(); // repo → absolute path
@@ -94,10 +89,10 @@ export function runCustomChecks(
   for (const check of checks) {
     const canonicalId = ID_MAP[check.id.toLowerCase()] ?? check.id;
     // Ensure result bucket exists
-    if (!(canonicalId in results)) {
-      (results as any)[canonicalId] = emptyResult();
+    if (!results[canonicalId]) {
+      results[canonicalId] = emptyResult();
     }
-    const bucket = (results as any)[canonicalId];
+    const bucket = results[canonicalId]!;
 
     const timeoutMs = check.timeoutMs ?? 120_000;
     const args = check.args ?? [];

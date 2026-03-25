@@ -1,4 +1,4 @@
-import type { CheckType } from './check-result.js';
+// CheckType is now `string`
 
 /**
  * A group of packages sharing the same error pattern.
@@ -11,7 +11,7 @@ export interface ErrorGroup {
   /** Package names in this group */
   packages: string[];
   /** Which check type this group belongs to */
-  checkType: CheckType;
+  checkType: string;
   /** Example error text (first 200 chars) */
   example: string;
 }

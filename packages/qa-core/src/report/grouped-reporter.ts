@@ -2,16 +2,14 @@ import type {
   QAResults,
   WorkspacePackage,
   QAPluginConfig,
-  CheckType,
   PackageStatus,
   GroupedResults,
   GroupSummary,
 } from '@kb-labs/qa-contracts';
-import { CHECK_TYPES } from '@kb-labs/qa-contracts';
 
-function emptyGroupSummary(): GroupSummary {
+function emptyGroupSummary(checkTypes: string[]): GroupSummary {
   const checks = {} as GroupSummary['checks'];
-  for (const ct of CHECK_TYPES) {
+  for (const ct of checkTypes) {
     checks[ct] = { passed: 0, failed: 0, skipped: 0 };
   }
   return { total: 0, passed: 0, failed: 0, checks };
@@ -19,11 +17,13 @@ function emptyGroupSummary(): GroupSummary {
 
 function resolveCheckStatus(
   pkgName: string,
-  ct: CheckType,
+  ct: string,
   results: QAResults,
 ): 'passed' | 'failed' | 'skipped' {
-  if (results[ct].failed.includes(pkgName)) {return 'failed';}
-  if (results[ct].passed.includes(pkgName)) {return 'passed';}
+  const r = results[ct];
+  if (!r) {return 'skipped';}
+  if (r.failed.includes(pkgName)) {return 'failed';}
+  if (r.passed.includes(pkgName)) {return 'passed';}
   return 'skipped';
 }
 
@@ -38,10 +38,10 @@ function buildPackageStatus(
   const checks = {} as PackageStatus['checks'];
   const errors: Record<string, string> = {};
 
-  for (const ct of CHECK_TYPES) {
+  for (const ct of Object.keys(results)) {
     checks[ct] = resolveCheckStatus(pkg.name, ct, results);
-    if (checks[ct] === 'failed' && results[ct].errors[pkg.name]) {
-      errors[ct] = results[ct].errors[pkg.name]!;
+    if (checks[ct] === 'failed' && results[ct]?.errors[pkg.name]) {
+      errors[ct] = results[ct]!.errors[pkg.name]!;
     }
   }
 
@@ -60,15 +60,18 @@ function buildPackageStatus(
 function addToSummary(summary: GroupSummary, status: PackageStatus): void {
   summary.total++;
 
-  const hasFail = CHECK_TYPES.some((ct) => status.checks[ct] === 'failed');
+  const hasFail = Object.values(status.checks).some((v) => v === 'failed');
   if (hasFail) {
     summary.failed++;
   } else {
     summary.passed++;
   }
 
-  for (const ct of CHECK_TYPES) {
+  for (const ct of Object.keys(status.checks)) {
     const s = status.checks[ct];
+    if (!summary.checks[ct]) {
+      summary.checks[ct] = { passed: 0, failed: 0, skipped: 0 };
+    }
     if (s === 'passed') {summary.checks[ct].passed++;}
     else if (s === 'failed') {summary.checks[ct].failed++;}
     else {summary.checks[ct].skipped++;}
@@ -87,6 +90,7 @@ export function groupResults(
   categoryMap: Map<string, string[]>,
   config?: QAPluginConfig,
 ): GroupedResults {
+  const checkTypes = Object.keys(results);
   const grouped: GroupedResults = { categories: {} };
 
   for (const pkg of packages) {
@@ -105,7 +109,7 @@ export function groupResults(
         grouped.categories[categoryKey] = {
           label,
           repos: {},
-          summary: emptyGroupSummary(),
+          summary: emptyGroupSummary(checkTypes),
         };
       }
 
@@ -115,7 +119,7 @@ export function groupResults(
       if (!categoryGroup.repos[pkg.repo]) {
         categoryGroup.repos[pkg.repo] = {
           packages: [],
-          summary: emptyGroupSummary(),
+          summary: emptyGroupSummary(checkTypes),
         };
       }
 

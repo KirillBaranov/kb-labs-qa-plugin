@@ -1,4 +1,4 @@
-import type { CheckType } from './check-result.js';
+// CheckType is now `string` — import kept for documentation
 
 /**
  * Git metadata captured at baseline time.
@@ -23,7 +23,7 @@ export interface BaselineCheckSnapshot {
 export interface BaselineSnapshot {
   timestamp: string;
   git: GitInfo;
-  results: Record<CheckType, BaselineCheckSnapshot>;
+  results: Record<string, BaselineCheckSnapshot>;
 }
 
 /**
@@ -43,4 +43,4 @@ export interface CheckDiff {
 /**
  * Full diff across all check types.
  */
-export type BaselineDiff = Record<CheckType, CheckDiff>;
+export type BaselineDiff = Record<string, CheckDiff>;

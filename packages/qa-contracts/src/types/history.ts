@@ -1,4 +1,3 @@
-import type { CheckType } from './check-result.js';
 import type { SubmoduleInfo } from './submodule.js';
 
 /**
@@ -14,15 +13,19 @@ export interface HistoryEntry {
   /** Per-repo submodule git state at time of run */
   submodules?: Record<string, SubmoduleInfo>;
   status: 'passed' | 'failed';
-  summary: Record<CheckType, { passed: number; failed: number; skipped: number }>;
-  failedPackages: Record<CheckType, string[]>;
+  summary: Record<string, { passed: number; failed: number; skipped: number }>;
+  failedPackages: Record<string, string[]>;
 }
 
 /**
  * Trend analysis result for a single check type.
  */
 export interface TrendResult {
-  checkType: CheckType;
+  checkType: string;
+  /** Display label */
+  label?: string;
+  /** Display icon (emoji) */
+  icon?: string;
   /** Failure count at start of window */
   previous: number;
   /** Failure count at end of window */
@@ -62,7 +65,11 @@ export interface TrendChangelogEntry {
  * Provides full time-series data, per-entry changelog, and velocity metrics.
  */
 export interface EnrichedTrendResult {
-  checkType: CheckType;
+  checkType: string;
+  /** Display label */
+  label?: string;
+  /** Display icon (emoji) */
+  icon?: string;
   /** All data points in the window (for time-series chart) */
   timeSeries: TrendTimeSeriesPoint[];
   /** What changed between consecutive entries */
