@@ -1,5 +1,5 @@
 import type { QAResults, BaselineDiff, HistoryEntry, TrendResult, RegressionResult, BaselineSnapshot, GroupedResults } from '@kb-labs/qa-contracts';
-import { CHECK_LABELS, CHECK_ICONS } from '@kb-labs/qa-contracts';
+import { getCheckLabel, getCheckIcon } from '@kb-labs/qa-contracts';
 
 export interface ReportSection {
   header: string;
@@ -7,11 +7,11 @@ export interface ReportSection {
 }
 
 function icon(ct: string): string {
-  return CHECK_ICONS[ct] ?? '';
+  return getCheckIcon(ct);
 }
 
 function label(ct: string): string {
-  return CHECK_LABELS[ct] ?? ct;
+  return getCheckLabel(ct);
 }
 
 /**

@@ -24,14 +24,9 @@ export const HISTORY_MAX_ENTRIES = 50;
 export const TRENDS_WINDOW = 10;
 
 /**
- * Default built-in check types (used when config.checks is not set).
+ * Default labels for built-in check types.
  */
-export const CHECK_TYPES = ['build', 'lint', 'typeCheck', 'test'] as const;
-
-/**
- * Labels for check types (for display).
- */
-export const CHECK_LABELS: Record<string, string> = {
+const DEFAULT_LABELS: Record<string, string> = {
   build: 'Build',
   lint: 'Lint',
   typeCheck: 'Type Check',
@@ -39,9 +34,9 @@ export const CHECK_LABELS: Record<string, string> = {
 };
 
 /**
- * Icons for check types (for display).
+ * Default icons (emoji) for built-in check types.
  */
-export const CHECK_ICONS: Record<string, string> = {
+const DEFAULT_ICONS: Record<string, string> = {
   build: '🔨',
   lint: '🔍',
   typeCheck: '📘',
@@ -52,12 +47,12 @@ export const CHECK_ICONS: Record<string, string> = {
  * Get display label for a check type. Priority: configName > known default > id.
  */
 export function getCheckLabel(id: string, configName?: string): string {
-  return configName ?? CHECK_LABELS[id] ?? id;
+  return configName ?? DEFAULT_LABELS[id] ?? id;
 }
 
 /**
  * Get display icon (emoji) for a check type. Priority: configIcon > known default > generic.
  */
 export function getCheckIcon(id: string, configIcon?: string): string {
-  return configIcon ?? CHECK_ICONS[id] ?? '☑️';
+  return configIcon ?? DEFAULT_ICONS[id] ?? '☑️';
 }
