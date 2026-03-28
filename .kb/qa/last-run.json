@@ -1,0 +1,30 @@
+{
+  "timestamp": "2026-03-25T10:28:26.126Z",
+  "results": {
+    "build": {
+      "passed": [],
+      "failed": [],
+      "skipped": [],
+      "errors": {}
+    },
+    "lint": {
+      "passed": [],
+      "failed": [],
+      "skipped": [],
+      "errors": {}
+    },
+    "typeCheck": {
+      "passed": [],
+      "failed": [],
+      "skipped": [],
+      "errors": {}
+    },
+    "test": {
+      "passed": [],
+      "failed": [],
+      "skipped": [],
+      "errors": {}
+    }
+  },
+  "packages": []
+}

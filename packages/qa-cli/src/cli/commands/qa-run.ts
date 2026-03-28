@@ -24,10 +24,14 @@ export default defineCommand({
       const flags = (input as any).flags ?? input;
       const rootDir = ctx.cwd;
 
-      // Load plugin config BEFORE running QA — needed for package discovery and checks
+      // Load plugin config — needed for package discovery and checks.
+      // useConfig() can hang if platform IPC is unavailable, so race with a timeout.
       let config: QAPluginConfig | undefined;
       try {
-        config = await useConfig<QAPluginConfig>();
+        config = await Promise.race([
+          useConfig<QAPluginConfig>(),
+          new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), 3000)),
+        ]);
       } catch {
         // Config not available (no platform context) — proceed without config
       }

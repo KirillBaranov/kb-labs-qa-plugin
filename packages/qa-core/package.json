@@ -50,7 +50,7 @@
     "@kb-labs/qa-contracts": "workspace:*"
   },
   "devDependencies": {
-    "@kb-labs/devkit": "workspace:*",
+    "@kb-labs/devkit": "link:../../../../infra/kb-labs-devkit",
     "@types/node": "^24.3.3",
     "eslint": "^9",
     "rimraf": "^6.0.1",

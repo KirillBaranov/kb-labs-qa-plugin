@@ -67,14 +67,45 @@ function getBuildLayers(rootDir: string): string[][] {
 }
 
 /**
+ * Sort packages according to devkit build-order layers (topological sort).
+ * Packages in earlier layers are built first so their .d.ts files exist
+ * when downstream packages need them.
+ * Falls back to original order if build-order is unavailable.
+ */
+function sortByBuildOrder(rootDir: string, packages: WorkspacePackage[]): WorkspacePackage[] {
+  const layers = getBuildLayers(rootDir);
+  if (layers.length === 0) {return [...packages];}
+
+  // Build name → order index map from layers
+  const orderMap = new Map<string, number>();
+  let idx = 0;
+  for (const layer of layers) {
+    for (const name of layer) {
+      orderMap.set(name, idx++);
+    }
+  }
+
+  const sorted = [...packages];
+  sorted.sort((a, b) => {
+    const oa = orderMap.get(a.name) ?? Number.MAX_SAFE_INTEGER;
+    const ob = orderMap.get(b.name) ?? Number.MAX_SAFE_INTEGER;
+    return oa - ob;
+  });
+  return sorted;
+}
+
+/**
  * Run build checks across all packages.
  * Uses incremental builds — only rebuilds packages where src/ is newer than dist/.
+ * Builds in dependency order (topological sort) so DTS files are available for downstream packages.
  */
 export function runBuildCheck(options: BuildRunnerOptions): CheckResult {
   const { rootDir, packages, noCache, onProgress } = options;
   const result: CheckResult = { passed: [], failed: [], skipped: [], errors: {} };
 
-  for (const pkg of packages) {
+  const sorted = sortByBuildOrder(rootDir, packages);
+
+  for (const pkg of sorted) {
     // Check if rebuild needed (incremental)
     if (!noCache && !needsRebuild(pkg.dir)) {
       result.skipped.push(pkg.name);

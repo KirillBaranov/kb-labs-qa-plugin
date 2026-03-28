@@ -36,7 +36,7 @@
     "clean:all": "rimraf node_modules packages/*/node_modules dist"
   },
   "devDependencies": {
-    "@kb-labs/devkit": "workspace:*",
+    "@kb-labs/devkit": "link:../../infra/kb-labs-devkit",
     "@typescript-eslint/eslint-plugin": "^8",
     "@typescript-eslint/parser": "^8",
     "eslint": "^9",
