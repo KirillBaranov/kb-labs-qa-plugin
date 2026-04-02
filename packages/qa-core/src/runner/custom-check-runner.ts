@@ -1,7 +1,8 @@
 import { spawnSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import type { QACheckConfig, QAResults, WorkspacePackage } from '@kb-labs/qa-contracts';
+import { sortByBuildLayers } from './build-order.js';
 
 function emptyResult() {
   return { passed: [] as string[], failed: [] as string[], skipped: [] as string[], errors: {} as Record<string, string> };
@@ -62,7 +63,7 @@ export function runCustomChecks(
   checks: QACheckConfig[],
   packages: WorkspacePackage[],
   rootDir: string,
-  onProgress?: (checkId: string, pkg: string, status: 'pass' | 'fail' | 'skip') => void,
+  onProgress?: (checkId: string, pkg: string, status: 'pass' | 'fail' | 'skip', durationMs?: number) => void,
 ): QAResults {
   // Map check ids to canonical QA check types (for compatibility with reporting)
   const ID_MAP: Record<string, string> = {
@@ -75,6 +76,29 @@ export function runCustomChecks(
   };
 
   const results: QAResults = {};
+
+  /**
+   * For "pnpm run <script>" checks: detect if the npm script exists in package.json.
+   * Returns the script name if this is a pnpm-run command, undefined otherwise.
+   */
+  function getPnpmScriptName(check: QACheckConfig): string | undefined {
+    if (check.command !== 'pnpm') return undefined;
+    const args = check.args ?? [];
+    if (args[0] === 'run' && args[1]) return args[1];
+    return undefined;
+  }
+
+  /**
+   * Check whether a package.json at pkgDir has a given npm script defined.
+   */
+  function hasNpmScript(pkgDir: string, scriptName: string): boolean {
+    try {
+      const pkgJson = JSON.parse(readFileSync(join(pkgDir, 'package.json'), 'utf-8'));
+      return typeof pkgJson?.scripts?.[scriptName] === 'string';
+    } catch {
+      return false;
+    }
+  }
 
   // Collect unique scope paths (repo root dirs) for scopePath mode
   const scopePaths = new Map<string, string>(); // repo → absolute path
@@ -108,15 +132,17 @@ export function runCustomChecks(
 
     if (runIn === 'repoRoot') {
       // Run once in workspace root
-      const { ok, stderr, exitCode, stdout } = runCommand(check.command, resolvedArgs, rootDir, timeoutMs);
+      const startMs = Date.now();
+      const { stderr, exitCode, stdout } = runCommand(check.command, resolvedArgs, rootDir, timeoutMs);
+      const durationMs = Date.now() - startMs;
       const passed = evaluate(check, stdout, stderr, exitCode);
-      if (passed || check.optional) {
+      if (passed) {
         bucket.passed.push(rootDir);
-        onProgress?.(canonicalId, rootDir, 'pass');
+        onProgress?.(canonicalId, rootDir, 'pass', durationMs);
       } else {
         bucket.failed.push(rootDir);
-        bucket.errors[rootDir] = stderr || `Exit code ${exitCode}`;
-        onProgress?.(canonicalId, rootDir, 'fail');
+        bucket.errors[rootDir] = stderr || stdout || `Exit code ${exitCode}`;
+        onProgress?.(canonicalId, rootDir, 'fail', durationMs);
       }
     } else if (runIn === 'scopePath') {
       // Run once per unique sub-repo root
@@ -127,29 +153,48 @@ export function runCustomChecks(
         const scopeDir = scopePaths.get(pkg.repo) ?? resolve(rootDir, pkg.repo);
         if (!existsSync(scopeDir)) {continue;}
 
-        const { ok, stderr, exitCode, stdout } = runCommand(check.command, resolvedArgs, scopeDir, timeoutMs);
+        const startMs = Date.now();
+        const { stderr, exitCode, stdout } = runCommand(check.command, resolvedArgs, scopeDir, timeoutMs);
+        const durationMs = Date.now() - startMs;
         const passed = evaluate(check, stdout, stderr, exitCode);
-        if (passed || check.optional) {
+        if (passed) {
           bucket.passed.push(pkg.repo);
-          onProgress?.(canonicalId, pkg.repo, 'pass');
+          onProgress?.(canonicalId, pkg.repo, 'pass', durationMs);
         } else {
           bucket.failed.push(pkg.repo);
-          bucket.errors[pkg.repo] = stderr || `Exit code ${exitCode}`;
-          onProgress?.(canonicalId, pkg.repo, 'fail');
+          bucket.errors[pkg.repo] = stderr || stdout || `Exit code ${exitCode}`;
+          onProgress?.(canonicalId, pkg.repo, 'fail', durationMs);
         }
       }
     } else {
       // perPackage (default): run in each package directory
-      for (const pkg of packages) {
-        const { ok, stderr, exitCode, stdout } = runCommand(check.command, resolvedArgs, pkg.dir, timeoutMs);
+      // Sort by dependency order when ordered: true (avoids DTS cascade failures for builds)
+      const sortedPackages = check.ordered
+        ? sortByBuildLayers(packages)
+        : packages;
+
+      const scriptName = getPnpmScriptName(check);
+
+      for (const pkg of sortedPackages) {
+        // If this is a "pnpm run <script>" check, skip packages that don't define the script.
+        // This handles Go launchers, plain-JS projects, etc. that have no type-check/lint/test script.
+        if (scriptName && !hasNpmScript(pkg.dir, scriptName)) {
+          bucket.skipped.push(pkg.name);
+          onProgress?.(canonicalId, pkg.name, 'skip');
+          continue;
+        }
+
+        const startMs = Date.now();
+        const { stderr, exitCode, stdout } = runCommand(check.command, resolvedArgs, pkg.dir, timeoutMs);
+        const durationMs = Date.now() - startMs;
         const passed = evaluate(check, stdout, stderr, exitCode);
-        if (passed || check.optional) {
+        if (passed) {
           bucket.passed.push(pkg.name);
-          onProgress?.(canonicalId, pkg.name, 'pass');
+          onProgress?.(canonicalId, pkg.name, 'pass', durationMs);
         } else {
           bucket.failed.push(pkg.name);
-          bucket.errors[pkg.name] = stderr || `Exit code ${exitCode}`;
-          onProgress?.(canonicalId, pkg.name, 'fail');
+          bucket.errors[pkg.name] = stderr || stdout || `Exit code ${exitCode}`;
+          onProgress?.(canonicalId, pkg.name, 'fail', durationMs);
         }
       }
     }
