@@ -18,57 +18,49 @@ function label(ct: string): string {
  * Build text report for a QA run.
  * Returns structured sections — CLI layer adds ANSI colors.
  */
+function buildBaselineDiffLines(diff: BaselineDiff): string[] {
+  const lines: string[] = [];
+  for (const ct of Object.keys(diff)) {
+    const d = diff[ct]!;
+    if (d.newFailures.length > 0) {
+      lines.push(`${icon(ct)} ${label(ct)}: +${d.newFailures.length} new failures`);
+      for (const pkg of d.newFailures) { lines.push(`     - ${pkg}`); }
+    }
+    if (d.fixed.length > 0) {
+      lines.push(`${icon(ct)} ${label(ct)}: -${d.fixed.length} fixed`);
+    }
+  }
+  return lines;
+}
+
 export function buildRunReport(results: QAResults, diff?: BaselineDiff | null): ReportSection[] {
   const sections: ReportSection[] = [];
 
   const summaryLines: string[] = [];
+  let totalPassed = 0;
+  let totalFailed = 0;
+  let totalSkipped = 0;
   for (const ct of Object.keys(results)) {
     const r = results[ct]!;
     const total = r.passed.length + r.failed.length + r.skipped.length;
     const pct = total > 0 ? Math.round((r.passed.length / total) * 100) : 100;
     const status = r.failed.length === 0 ? 'PASS' : 'FAIL';
-
     summaryLines.push(`${status} ${icon(ct)}  ${label(ct).padEnd(12)} ${r.passed.length}/${total} passed (${pct}%)`);
-
     if (r.failed.length > 0) {
-      const shown = r.failed.slice(0, 5);
-      for (const pkg of shown) {
-        summaryLines.push(`     - ${pkg}`);
-      }
-      if (r.failed.length > 5) {
-        summaryLines.push(`     ... and ${r.failed.length - 5} more`);
-      }
+      for (const pkg of r.failed.slice(0, 5)) { summaryLines.push(`     - ${pkg}`); }
+      if (r.failed.length > 5) { summaryLines.push(`     ... and ${r.failed.length - 5} more`); }
     }
+    totalPassed += r.passed.length;
+    totalFailed += r.failed.length;
+    totalSkipped += r.skipped.length;
   }
   sections.push({ header: 'QA Summary Report', lines: summaryLines });
 
   if (diff) {
-    const diffLines: string[] = [];
-    for (const ct of Object.keys(diff)) {
-      const d = diff[ct]!;
-      if (d.newFailures.length > 0) {
-        diffLines.push(`${icon(ct)} ${label(ct)}: +${d.newFailures.length} new failures`);
-        for (const pkg of d.newFailures) {
-          diffLines.push(`     - ${pkg}`);
-        }
-      }
-      if (d.fixed.length > 0) {
-        diffLines.push(`${icon(ct)} ${label(ct)}: -${d.fixed.length} fixed`);
-      }
-    }
-    if (diffLines.length > 0) {
-      sections.push({ header: 'Baseline Comparison', lines: diffLines });
-    }
+    const diffLines = buildBaselineDiffLines(diff);
+    if (diffLines.length > 0) { sections.push({ header: 'Baseline Comparison', lines: diffLines }); }
   }
 
-  let totalPassed = 0;
-  let totalFailed = 0;
-  let totalSkipped = 0;
-  for (const ct of Object.keys(results)) {
-    totalPassed += results[ct]!.passed.length;
-    totalFailed += results[ct]!.failed.length;
-    totalSkipped += results[ct]!.skipped.length;
-  }
   sections.push({
     header: 'Totals',
     lines: [`Total: ${totalPassed} passed, ${totalFailed} failed, ${totalSkipped} skipped`],
@@ -199,95 +191,74 @@ function checkTag(status: 'passed' | 'failed' | 'skipped', ct: string): string {
 /**
  * Build a detailed report grouped by category → repo → packages.
  */
+type PackageEntry = GroupedResults['categories'][string]['repos'][string]['packages'][number];
+
+function getErrorPreview(raw: string): string {
+  const errLines = raw.split('\n').filter((l) => l.trim().length > 0);
+  for (const el of errLines) {
+    const cleaned = el.replace(/^Command failed: .*/, '').trim();
+    if (cleaned.length > 0) {
+      return cleaned.replace(/\/[^\s]*\/kb-labs\//g, '').slice(0, 100);
+    }
+  }
+  return '';
+}
+
+function renderPackageLines(pkg: PackageEntry, lines: string[]): void {
+  const hasFail = Object.values(pkg.checks).some((v) => v === 'failed');
+  const status = hasFail ? 'FAIL' : 'PASS';
+  const tags = Object.keys(pkg.checks).map((ct) => checkTag(pkg.checks[ct]!, ct)).join(' ');
+  lines.push(`    ${status} ${pkg.name.padEnd(40)} ${tags}`);
+  if (hasFail) {
+    for (const ct of Object.keys(pkg.checks)) {
+      if (pkg.checks[ct] === 'failed') {
+        const preview = getErrorPreview((pkg.errors[ct] ?? '').trim());
+        lines.push(`         ${ct}: ${preview || 'failed'}`);
+      }
+    }
+  }
+}
+
+function renderCategoryLines(catKey: string, grouped: GroupedResults): string[] {
+  const cat = grouped.categories[catKey]!;
+  const lines: string[] = [`PASS ${cat.summary.passed} | FAIL ${cat.summary.failed}`, ''];
+
+  for (const repoKey of Object.keys(cat.repos).sort()) {
+    const repo = cat.repos[repoKey]!;
+    lines.push(`  ${repoKey} (${repo.summary.total} packages)`);
+
+    const sorted = [...repo.packages].sort((a, b) => {
+      const aFail = Object.values(a.checks).some((v) => v === 'failed') ? 0 : 1;
+      const bFail = Object.values(b.checks).some((v) => v === 'failed') ? 0 : 1;
+      if (aFail !== bFail) { return aFail - bFail; }
+      return a.name.localeCompare(b.name);
+    });
+
+    for (const pkg of sorted) { renderPackageLines(pkg, lines); }
+    lines.push('');
+  }
+  return lines;
+}
+
 export function buildDetailedRunReport(grouped: GroupedResults, diff?: BaselineDiff | null): ReportSection[] {
   const sections: ReportSection[] = [];
 
-  const categoryKeys = Object.keys(grouped.categories);
-
-  // Sort: named categories first (alphabetically), 'uncategorized' last
-  categoryKeys.sort((a, b) => {
-    if (a === 'uncategorized') {return 1;}
-    if (b === 'uncategorized') {return -1;}
+  const categoryKeys = Object.keys(grouped.categories).sort((a, b) => {
+    if (a === 'uncategorized') { return 1; }
+    if (b === 'uncategorized') { return -1; }
     return a.localeCompare(b);
   });
 
   for (const catKey of categoryKeys) {
     const cat = grouped.categories[catKey]!;
-    const lines: string[] = [];
-
-    lines.push(`PASS ${cat.summary.passed} | FAIL ${cat.summary.failed}`);
-    lines.push('');
-
-    const repoKeys = Object.keys(cat.repos).sort();
-    for (const repoKey of repoKeys) {
-      const repo = cat.repos[repoKey]!;
-      lines.push(`  ${repoKey} (${repo.summary.total} packages)`);
-
-      // Sort packages: failed first, then passed, then skipped
-      const sorted = [...repo.packages].sort((a, b) => {
-        const aFail = Object.values(a.checks).some((v) => v === 'failed') ? 0 : 1;
-        const bFail = Object.values(b.checks).some((v) => v === 'failed') ? 0 : 1;
-        if (aFail !== bFail) {return aFail - bFail;}
-        return a.name.localeCompare(b.name);
-      });
-
-      for (const pkg of sorted) {
-        const hasFail = Object.values(pkg.checks).some((v) => v === 'failed');
-        const status = hasFail ? 'FAIL' : 'PASS';
-        const tags = Object.keys(pkg.checks).map((ct) => checkTag(pkg.checks[ct]!, ct)).join(' ');
-        lines.push(`    ${status} ${pkg.name.padEnd(40)} ${tags}`);
-
-        // Show error details for failed checks
-        if (hasFail) {
-          for (const ct of Object.keys(pkg.checks)) {
-            if (pkg.checks[ct] === 'failed') {
-              const raw = (pkg.errors[ct] ?? '').trim();
-              // Find first meaningful error line (skip empty, skip "Command failed:" prefix)
-              const errLines = raw.split('\n').filter((l) => l.trim().length > 0);
-              let preview = '';
-              for (const el of errLines) {
-                const cleaned = el.replace(/^Command failed: .*/, '').trim();
-                if (cleaned.length > 0) {
-                  // Shorten absolute paths: /Users/.../kb-labs/kb-labs-core/... → kb-labs-core/...
-                  preview = cleaned.replace(/\/[^\s]*\/kb-labs\//g, '').slice(0, 100);
-                  break;
-                }
-              }
-              lines.push(`         ${ct}: ${preview || 'failed'}`);
-            }
-          }
-        }
-      }
-      lines.push('');
-    }
-
-    sections.push({
-      header: `${cat.label} (${cat.summary.total} packages)`,
-      lines,
-    });
+    sections.push({ header: `${cat.label} (${cat.summary.total} packages)`, lines: renderCategoryLines(catKey, grouped) });
   }
 
-  // Baseline diff section (reuse from buildRunReport)
   if (diff) {
-    const diffLines: string[] = [];
-    for (const ct of Object.keys(diff)) {
-      const d = diff[ct]!;
-      if (d.newFailures.length > 0) {
-        diffLines.push(`${icon(ct)} ${label(ct)}: +${d.newFailures.length} new failures`);
-        for (const pkg of d.newFailures) {
-          diffLines.push(`     - ${pkg}`);
-        }
-      }
-      if (d.fixed.length > 0) {
-        diffLines.push(`${icon(ct)} ${label(ct)}: -${d.fixed.length} fixed`);
-      }
-    }
-    if (diffLines.length > 0) {
-      sections.push({ header: 'Baseline Comparison', lines: diffLines });
-    }
+    const diffLines = buildBaselineDiffLines(diff);
+    if (diffLines.length > 0) { sections.push({ header: 'Baseline Comparison', lines: diffLines }); }
   }
 
-  // Grand totals
   let totalPassed = 0;
   let totalFailed = 0;
   for (const catKey of categoryKeys) {

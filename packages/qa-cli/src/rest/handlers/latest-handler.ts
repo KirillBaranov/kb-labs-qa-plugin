@@ -11,7 +11,7 @@ import type { QALatestRequest, QALatestResponse } from '@kb-labs/qa-contracts';
 export default defineHandler({
   async execute(
     ctx: PluginContextV3,
-    input: RestInput<QALatestRequest, unknown>,
+    _input: RestInput<QALatestRequest, unknown>,
   ): Promise<QALatestResponse> {
     const history = loadHistory(ctx.cwd);
 

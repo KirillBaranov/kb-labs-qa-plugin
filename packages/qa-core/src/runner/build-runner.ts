@@ -2,12 +2,13 @@ import { execSync } from 'node:child_process';
 import { existsSync, statSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import type { CheckResult, WorkspacePackage } from '@kb-labs/qa-contracts';
+import { sortByBuildLayers } from './build-order.js';
 
 interface BuildRunnerOptions {
   rootDir: string;
   packages: WorkspacePackage[];
   noCache?: boolean;
-  onProgress?: (pkg: string, status: 'pass' | 'fail' | 'skip') => void;
+  onProgress?: (pkg: string, status: 'pass' | 'fail' | 'skip', durationMs?: number) => void;
 }
 
 /**
@@ -45,65 +46,15 @@ function getLatestMtime(dir: string): number {
 }
 
 /**
- * Get build layers via topological sort.
- * Falls back to flat list if kb-devkit-build-order is not available.
- */
-function getBuildLayers(rootDir: string): string[][] {
-  try {
-    const output = execSync('npx kb-devkit-build-order --layers --json', {
-      cwd: rootDir,
-      encoding: 'utf-8',
-      timeout: 30000,
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
-    const parsed = JSON.parse(output);
-    if (Array.isArray(parsed.layers)) {
-      return parsed.layers;
-    }
-  } catch {
-    // Fallback — no layers available
-  }
-  return [];
-}
-
-/**
- * Sort packages according to devkit build-order layers (topological sort).
- * Packages in earlier layers are built first so their .d.ts files exist
- * when downstream packages need them.
- * Falls back to original order if build-order is unavailable.
- */
-function sortByBuildOrder(rootDir: string, packages: WorkspacePackage[]): WorkspacePackage[] {
-  const layers = getBuildLayers(rootDir);
-  if (layers.length === 0) {return [...packages];}
-
-  // Build name → order index map from layers
-  const orderMap = new Map<string, number>();
-  let idx = 0;
-  for (const layer of layers) {
-    for (const name of layer) {
-      orderMap.set(name, idx++);
-    }
-  }
-
-  const sorted = [...packages];
-  sorted.sort((a, b) => {
-    const oa = orderMap.get(a.name) ?? Number.MAX_SAFE_INTEGER;
-    const ob = orderMap.get(b.name) ?? Number.MAX_SAFE_INTEGER;
-    return oa - ob;
-  });
-  return sorted;
-}
-
-/**
  * Run build checks across all packages.
  * Uses incremental builds — only rebuilds packages where src/ is newer than dist/.
  * Builds in dependency order (topological sort) so DTS files are available for downstream packages.
  */
 export function runBuildCheck(options: BuildRunnerOptions): CheckResult {
-  const { rootDir, packages, noCache, onProgress } = options;
+  const { packages, noCache, onProgress } = options;
   const result: CheckResult = { passed: [], failed: [], skipped: [], errors: {} };
 
-  const sorted = sortByBuildOrder(rootDir, packages);
+  const sorted = sortByBuildLayers(packages);
 
   for (const pkg of sorted) {
     // Check if rebuild needed (incremental)
@@ -113,6 +64,7 @@ export function runBuildCheck(options: BuildRunnerOptions): CheckResult {
       continue;
     }
 
+    const startMs = Date.now();
     try {
       execSync('pnpm run build', {
         cwd: pkg.dir,
@@ -120,13 +72,15 @@ export function runBuildCheck(options: BuildRunnerOptions): CheckResult {
         timeout: 120000,
         stdio: ['pipe', 'pipe', 'pipe'],
       });
+      const durationMs = Date.now() - startMs;
       result.passed.push(pkg.name);
-      onProgress?.(pkg.name, 'pass');
+      onProgress?.(pkg.name, 'pass', durationMs);
     } catch (err: any) {
+      const durationMs = Date.now() - startMs;
       result.failed.push(pkg.name);
       const rawErr = (err.stderr || err.stdout || err.message || '').trim();
       result.errors[pkg.name] = rawErr.slice(0, 2000) || `Build failed (exit code ${err.status ?? 1})`;
-      onProgress?.(pkg.name, 'fail');
+      onProgress?.(pkg.name, 'fail', durationMs);
     }
   }
 

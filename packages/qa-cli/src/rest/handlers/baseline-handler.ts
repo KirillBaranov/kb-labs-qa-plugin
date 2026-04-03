@@ -11,7 +11,7 @@ import type { QABaselineRequest, QABaselineResponse } from '@kb-labs/qa-contract
 export default defineHandler({
   async execute(
     ctx: PluginContextV3,
-    input: RestInput<QABaselineRequest, unknown>,
+    _input: RestInput<QABaselineRequest, unknown>,
   ): Promise<QABaselineResponse> {
     const baseline = loadBaseline(ctx.cwd);
     return { baseline: baseline ?? null };

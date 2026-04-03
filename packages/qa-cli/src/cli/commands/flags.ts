@@ -3,10 +3,12 @@
  * DRY: Define once, use in manifest and command handlers.
  */
 
+const JSON_FLAG_DESCRIPTION = 'Output JSON format';
+
 export const qaRunFlags = {
   json: {
     type: 'boolean',
-    description: 'Output JSON format',
+    description: JSON_FLAG_DESCRIPTION,
     default: false,
   },
   'skip-check': {
@@ -50,7 +52,7 @@ export type QARunFlags = typeof qaRunFlags;
 export const qaSaveFlags = {
   json: {
     type: 'boolean',
-    description: 'Output JSON format',
+    description: JSON_FLAG_DESCRIPTION,
     default: false,
   },
 } as const;
@@ -60,7 +62,7 @@ export type QASaveFlags = typeof qaSaveFlags;
 export const qaHistoryFlags = {
   json: {
     type: 'boolean',
-    description: 'Output JSON format',
+    description: JSON_FLAG_DESCRIPTION,
     default: false,
   },
   limit: {
@@ -75,7 +77,7 @@ export type QAHistoryFlags = typeof qaHistoryFlags;
 export const qaTrendsFlags = {
   json: {
     type: 'boolean',
-    description: 'Output JSON format',
+    description: JSON_FLAG_DESCRIPTION,
     default: false,
   },
   window: {
@@ -90,7 +92,7 @@ export type QATrendsFlags = typeof qaTrendsFlags;
 export const qaRegressionsFlags = {
   json: {
     type: 'boolean',
-    description: 'Output JSON format',
+    description: JSON_FLAG_DESCRIPTION,
     default: false,
   },
 } as const;
@@ -100,7 +102,7 @@ export type QARegressionsFlags = typeof qaRegressionsFlags;
 export const baselineUpdateFlags = {
   json: {
     type: 'boolean',
-    description: 'Output JSON format',
+    description: JSON_FLAG_DESCRIPTION,
     default: false,
   },
 } as const;
@@ -110,7 +112,7 @@ export type BaselineUpdateFlags = typeof baselineUpdateFlags;
 export const baselineStatusFlags = {
   json: {
     type: 'boolean',
-    description: 'Output JSON format',
+    description: JSON_FLAG_DESCRIPTION,
     default: false,
   },
 } as const;

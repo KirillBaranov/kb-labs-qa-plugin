@@ -12,7 +12,7 @@ import type { QASummaryRequest, QASummaryResponse } from '@kb-labs/qa-contracts'
 export default defineHandler({
   async execute(
     ctx: PluginContextV3,
-    input: RestInput<QASummaryRequest, unknown>,
+    _input: RestInput<QASummaryRequest, unknown>,
   ): Promise<QASummaryResponse> {
     const baseline = loadBaseline(ctx.cwd);
     const history = loadHistory(ctx.cwd);

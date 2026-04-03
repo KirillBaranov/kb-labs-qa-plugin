@@ -47,8 +47,8 @@ export interface QARunOptions {
   packagesConfig?: PackagesConfig;
   /** Custom checks to run. If provided, replaces built-in runners (build/lint/typeCheck/test). */
   checks?: QACheckConfig[];
-  /** Progress callback */
-  onProgress?: (phase: string, pkg: string, status: 'pass' | 'fail' | 'skip') => void;
+  /** Progress callback (durationMs is set for executed checks, undefined for skipped) */
+  onProgress?: (phase: string, pkg: string, status: 'pass' | 'fail' | 'skip', durationMs?: number) => void;
 }
 
 /**

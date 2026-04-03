@@ -21,7 +21,7 @@ export default defineHandler({
     try {
       config = await Promise.race([
         useConfig<QAPluginConfig>(),
-        new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), 3000)),
+        new Promise<undefined>((resolve) => { setTimeout(() => resolve(undefined), 3000); }),
       ]);
     } catch { /* no platform context */ }
 

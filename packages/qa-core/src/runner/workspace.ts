@@ -4,6 +4,83 @@ import type { WorkspacePackage, PackageFilter, SubmoduleInfo } from '@kb-labs/qa
 import type { PackagesConfig } from '@kb-labs/qa-contracts';
 import { getSubmoduleInfo } from './submodule-info.js';
 
+function hasWorkspace(dir: string): boolean {
+  return existsSync(join(dir, 'pnpm-workspace.yaml'));
+}
+
+function isDir(p: string): boolean {
+  return existsSync(p) && statSync(p).isDirectory();
+}
+
+function buildCandidatesFromConfig(rootDir: string, paths: string[]): string[] {
+  const candidates: string[] = [];
+  for (const pattern of paths) {
+    const parts = pattern.split('/');
+    if (parts.length === 2 && parts[1] === '*' && parts[0]) {
+      const categoryDir = join(rootDir, parts[0]);
+      if (!isDir(categoryDir)) { continue; }
+      try {
+        for (const sub of readdirSync(categoryDir)) {
+          if (sub.startsWith('.') || sub === 'node_modules') { continue; }
+          const subPath = join(categoryDir, sub);
+          if (isDir(subPath) && hasWorkspace(subPath)) { candidates.push(subPath); }
+        }
+      } catch { /* skip unreadable dirs */ }
+    } else {
+      const exactPath = join(rootDir, pattern);
+      if (isDir(exactPath) && hasWorkspace(exactPath)) { candidates.push(exactPath); }
+    }
+  }
+  return candidates;
+}
+
+function buildCandidatesAutoScan(rootDir: string): string[] {
+  const candidates: string[] = [];
+  for (const entry of readdirSync(rootDir)) {
+    if (entry.startsWith('.') || entry === 'node_modules' || entry === 'dist') { continue; }
+    const entryPath = join(rootDir, entry);
+    if (!isDir(entryPath)) { continue; }
+    if (hasWorkspace(entryPath)) {
+      candidates.push(entryPath);
+    } else {
+      try {
+        for (const sub of readdirSync(entryPath)) {
+          if (sub.startsWith('.') || sub === 'node_modules') { continue; }
+          const subPath = join(entryPath, sub);
+          if (isDir(subPath) && hasWorkspace(subPath)) { candidates.push(subPath); }
+        }
+      } catch { /* skip unreadable dirs */ }
+    }
+  }
+  return candidates;
+}
+
+function scanSubDir(
+  parentDir: string,
+  entryPath: string,
+  repoName: string,
+  rootDir: string,
+  submodule: SubmoduleInfo | undefined,
+  packages: WorkspacePackage[],
+): void {
+  if (!isDir(parentDir)) { return; }
+  for (const pkgDir of readdirSync(parentDir)) {
+    const pkgPath = join(parentDir, pkgDir);
+    const pkgJsonPath = join(pkgPath, 'package.json');
+    if (!existsSync(pkgJsonPath)) { continue; }
+    try {
+      const pkgJson = JSON.parse(readFileSync(pkgJsonPath, 'utf-8'));
+      packages.push({
+        name: pkgJson.name || pkgDir,
+        dir: pkgPath,
+        relativePath: relative(rootDir, pkgPath),
+        repo: repoName,
+        submodule,
+      });
+    } catch { /* skip invalid package.json */ }
+  }
+}
+
 /**
  * Discover all workspace packages in the monorepo.
  *
@@ -16,7 +93,6 @@ export function getWorkspacePackages(
   packagesConfig?: PackagesConfig,
 ): WorkspacePackage[] {
   const packages: WorkspacePackage[] = [];
-  // Cache submodule info per repo to avoid redundant git calls
   const submoduleCache = new Map<string, SubmoduleInfo | null>();
 
   function getSubmoduleCached(entryPath: string, repoName: string): SubmoduleInfo | undefined {
@@ -26,107 +102,18 @@ export function getWorkspacePackages(
     return submoduleCache.get(repoName) ?? undefined;
   }
 
-  // Build list of candidate sub-repo directories
-  const candidates: string[] = [];
+  const candidates =
+    packagesConfig?.paths && packagesConfig.paths.length > 0
+      ? buildCandidatesFromConfig(rootDir, packagesConfig.paths)
+      : buildCandidatesAutoScan(rootDir);
 
-  if (packagesConfig?.paths && packagesConfig.paths.length > 0) {
-    // Config-driven: expand each path pattern (simple glob: "platform/*" → all dirs in platform/)
-    for (const pattern of packagesConfig.paths) {
-      const parts = pattern.split('/');
-      if (parts.length === 2 && parts[1] === '*' && parts[0]) {
-        // "category/*" — scan all subdirs of category
-        const categoryDir = join(rootDir, parts[0]);
-        if (!existsSync(categoryDir) || !statSync(categoryDir).isDirectory()) {continue;}
-        try {
-          for (const sub of readdirSync(categoryDir)) {
-            if (sub.startsWith('.') || sub === 'node_modules') {continue;}
-            const subPath = join(categoryDir, sub);
-            if (statSync(subPath).isDirectory() && existsSync(join(subPath, 'pnpm-workspace.yaml'))) {
-              candidates.push(subPath);
-            }
-          }
-        } catch { /* skip unreadable dirs */ }
-      } else {
-        // Exact path (e.g. "installer/kb-labs-create")
-        const exactPath = join(rootDir, pattern);
-        if (existsSync(exactPath) && statSync(exactPath).isDirectory() && existsSync(join(exactPath, 'pnpm-workspace.yaml'))) {
-          candidates.push(exactPath);
-        }
-      }
-    }
-  } else {
-    // Auto-scan: support both flat layout (sub-repos in root) and nested layout
-    // (sub-repos inside category dirs like platform/, plugins/, infra/)
-    const rootEntries = readdirSync(rootDir);
-    for (const entry of rootEntries) {
-      if (entry.startsWith('.') || entry === 'node_modules' || entry === 'dist') {continue;}
-      const entryPath = join(rootDir, entry);
-      if (!statSync(entryPath).isDirectory()) {continue;}
-      if (existsSync(join(entryPath, 'pnpm-workspace.yaml'))) {
-        // Flat layout: sub-repo directly in root
-        candidates.push(entryPath);
-      } else {
-        // Nested layout: category dir — scan one level deeper
-        try {
-          for (const sub of readdirSync(entryPath)) {
-            if (sub.startsWith('.') || sub === 'node_modules') {continue;}
-            const subPath = join(entryPath, sub);
-            if (statSync(subPath).isDirectory() && existsSync(join(subPath, 'pnpm-workspace.yaml'))) {
-              candidates.push(subPath);
-            }
-          }
-        } catch { /* skip unreadable dirs */ }
-      }
-    }
-  }
-
-  // Scan each candidate sub-monorepo for packages
   for (const entryPath of candidates) {
-    const entry = relative(rootDir, entryPath);
-    const submodule = getSubmoduleCached(entryPath, entry);
-
-    // Scan packages/ directory
-    const packagesDir = join(entryPath, 'packages');
-    if (existsSync(packagesDir) && statSync(packagesDir).isDirectory()) {
-      for (const pkgDir of readdirSync(packagesDir)) {
-        const pkgPath = join(packagesDir, pkgDir);
-        const pkgJsonPath = join(pkgPath, 'package.json');
-        if (!existsSync(pkgJsonPath)) {continue;}
-        try {
-          const pkgJson = JSON.parse(readFileSync(pkgJsonPath, 'utf-8'));
-          packages.push({
-            name: pkgJson.name || pkgDir,
-            dir: pkgPath,
-            relativePath: relative(rootDir, pkgPath),
-            repo: entry,
-            submodule,
-          });
-        } catch { /* skip invalid package.json */ }
-      }
-    }
-
-    // Also scan apps/ directory
-    const appsDir = join(entryPath, 'apps');
-    if (existsSync(appsDir) && statSync(appsDir).isDirectory()) {
-      for (const appDir of readdirSync(appsDir)) {
-        const appPath = join(appsDir, appDir);
-        const pkgJsonPath = join(appPath, 'package.json');
-        if (!existsSync(pkgJsonPath)) {continue;}
-        try {
-          const pkgJson = JSON.parse(readFileSync(pkgJsonPath, 'utf-8'));
-          packages.push({
-            name: pkgJson.name || appDir,
-            dir: appPath,
-            relativePath: relative(rootDir, appPath),
-            repo: entry,
-            submodule,
-          });
-        } catch { /* skip invalid package.json */ }
-      }
-    }
+    const repoName = relative(rootDir, entryPath);
+    const submodule = getSubmoduleCached(entryPath, repoName);
+    scanSubDir(join(entryPath, 'packages'), entryPath, repoName, rootDir, submodule, packages);
+    scanSubDir(join(entryPath, 'apps'), entryPath, repoName, rootDir, submodule, packages);
   }
 
-  // Apply packagesConfig include/exclude filters
   let filtered = packages;
   if (packagesConfig?.include && packagesConfig.include.length > 0) {
     filtered = filtered.filter(pkg =>
@@ -139,15 +126,14 @@ export function getWorkspacePackages(
     );
   }
 
-  // Apply per-run CLI filters (--package, --repo, --scope)
-  if (!filter) {return filtered;}
+  if (!filter) { return filtered; }
 
   return filtered.filter((pkg) => {
-    if (filter.package && !pkg.name.includes(filter.package)) {return false;}
-    if (filter.repo && pkg.repo !== filter.repo) {return false;}
+    if (filter.package && !pkg.name.includes(filter.package)) { return false; }
+    if (filter.repo && pkg.repo !== filter.repo) { return false; }
     if (filter.scope) {
       const scope = filter.scope.startsWith('@') ? filter.scope : `@${filter.scope}`;
-      if (!pkg.name.startsWith(scope)) {return false;}
+      if (!pkg.name.startsWith(scope)) { return false; }
     }
     return true;
   });

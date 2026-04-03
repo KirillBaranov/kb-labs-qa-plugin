@@ -11,7 +11,7 @@ import type { QARegressionsRequest, QARegressionsResponse } from '@kb-labs/qa-co
 export default defineHandler({
   async execute(
     ctx: PluginContextV3,
-    input: RestInput<QARegressionsRequest, unknown>,
+    _input: RestInput<QARegressionsRequest, unknown>,
   ): Promise<QARegressionsResponse> {
     const history = loadHistory(ctx.cwd);
     return detectRegressions(history);

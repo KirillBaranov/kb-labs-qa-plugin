@@ -304,6 +304,31 @@ export const manifest = {
     ],
   },
 
+  // Studio V2 — Module Federation pages
+  studio: {
+    version: 2 as const,
+    remoteName: 'qaPlugin',
+    pages: [
+      {
+        id: 'qa.overview',
+        title: 'QA',
+        icon: 'ExperimentOutlined',
+        route: '/p/qa',
+        entry: './QADashboard',
+        order: 1,
+      },
+    ],
+    menus: [
+      {
+        id: 'qa',
+        label: 'QA',
+        icon: 'ExperimentOutlined',
+        target: 'qa.overview',
+        order: 50,
+      },
+    ],
+  },
+
   permissions: pluginPermissions,
 };
 

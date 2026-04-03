@@ -181,6 +181,8 @@ const RegressionEntrySchema = z.object({
   newFailures: z.array(z.string()),
 });
 
+export type RegressionEntry = z.infer<typeof RegressionEntrySchema>;
+
 export const QARegressionsResponseSchema = z.object({
   hasRegressions: z.boolean(),
   regressions: z.array(RegressionEntrySchema),

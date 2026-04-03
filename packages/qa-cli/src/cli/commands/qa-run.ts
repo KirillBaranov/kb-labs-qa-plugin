@@ -1,7 +1,8 @@
-import { defineCommand, useConfig, type PluginContextV3 } from '@kb-labs/sdk';
+import { defineCommand, type CLIInput, useConfig, type PluginContextV3 } from '@kb-labs/sdk';
 import type { QAPluginConfig } from '@kb-labs/qa-contracts';
 import {
   runQA,
+  getWorkspacePackages,
   compareWithBaseline,
   loadBaseline,
   buildDetailedJsonReport,
@@ -10,18 +11,39 @@ import {
   resolveCategories,
   groupResults,
 } from '@kb-labs/qa-core';
-import type { QARunFlags } from './flags.js';
 
-type QARunInput = QARunFlags & { argv?: string[]; flags?: any };
+interface QARunFlags {
+  json?: boolean;
+  'skip-check'?: string | string[];
+  'no-cache'?: boolean;
+  all?: boolean;
+  package?: string;
+  repo?: string;
+  scope?: string;
+  summary?: boolean;
+}
+
+const CHECK_ICONS: Record<string, string> = {
+  build: '🔨',
+  lint: '🔍',
+  typeCheck: '📘',
+  test: '🧪',
+};
+
+const STATUS_MARKS: Record<string, string> = {
+  pass: '✓',
+  fail: '✗',
+  skip: '−',
+};
 
 export default defineCommand({
   id: 'qa:run',
   description: 'Run all QA checks (build, lint, types, tests)',
 
   handler: {
-    async execute(ctx: PluginContextV3, input: QARunInput) {
+    async execute(ctx: PluginContextV3, input: CLIInput<QARunFlags>) {
       const { ui } = ctx;
-      const flags = (input as any).flags ?? input;
+      const { flags } = input;
       const rootDir = ctx.cwd;
 
       // Load plugin config — needed for package discovery and checks.
@@ -30,7 +52,7 @@ export default defineCommand({
       try {
         config = await Promise.race([
           useConfig<QAPluginConfig>(),
-          new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), 3000)),
+          new Promise<undefined>((resolve) => { setTimeout(() => resolve(undefined), 3000); }),
         ]);
       } catch {
         // Config not available (no platform context) — proceed without config
@@ -46,6 +68,27 @@ export default defineCommand({
         ? rawSkip as string[]
         : rawSkip ? [rawSkip as string] : [];
 
+      const isJson = !!flags.json;
+
+      // Pre-discover packages to get total count for progress display
+      let totalPkgs = 0;
+      if (!isJson) {
+        try {
+          const pkgs = getWorkspacePackages(rootDir, {
+            package: flags.package as string | undefined,
+            repo: flags.repo as string | undefined,
+            scope: scopeKey,
+          }, config?.packages);
+          totalPkgs = pkgs.length;
+        } catch {
+          // Will be discovered again inside runQA
+        }
+      }
+
+      // Progress tracking for live UI
+      const counters: Record<string, number> = {};
+      let currentPhase = '';
+
       const startTime = Date.now();
       const { results, packages } = await runQA({
         rootDir,
@@ -56,8 +99,33 @@ export default defineCommand({
         scope: scopeKey,
         packagesConfig: config?.packages,
         checks,
+        onProgress: (phase, pkg, status, durationMs) => {
+          if (isJson) {return;}
+
+          // Print phase header on phase change
+          if (phase !== currentPhase) {
+            currentPhase = phase;
+            counters[phase] = 0;
+            const phaseIcon = CHECK_ICONS[phase] ?? '▸';
+            const elapsed = ((Date.now() - startTime) / 1000).toFixed(0);
+            process.stdout.write(`\n${phaseIcon} ${phase} (${elapsed}s elapsed)\n`);
+          }
+
+          counters[phase] = (counters[phase] ?? 0) + 1;
+          const count = counters[phase];
+          const total = totalPkgs || '?';
+          const mark = STATUS_MARKS[status] ?? status;
+          const time = durationMs != null ? ` (${(durationMs / 1000).toFixed(1)}s)` : '';
+
+          process.stdout.write(`  [${count}/${total}] ${pkg} ${mark}${time}\n`);
+        },
       });
       const durationMs = Date.now() - startTime;
+
+      if (!isJson) {
+        const elapsed = (durationMs / 1000).toFixed(1);
+        process.stdout.write(`\nCompleted in ${elapsed}s\n\n`);
+      }
 
       // Track analytics events
       const analytics = ctx.platform.analytics;
@@ -94,7 +162,7 @@ export default defineCommand({
       const categoryMap = resolveCategories(packages, config);
       const grouped = groupResults(results, packages, categoryMap, config);
 
-      if (flags.json) {
+      if (isJson) {
         const report = buildDetailedJsonReport(results, grouped, diff);
         ui?.json?.({ ...report, skippedChecks: skipChecks });
         return { exitCode: report.status === 'failed' ? 1 : 0 };

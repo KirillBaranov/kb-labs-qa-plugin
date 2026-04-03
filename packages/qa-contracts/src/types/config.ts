@@ -26,6 +26,12 @@ export interface QACheckConfig {
   /** If true, failure does not block the overall QA run */
   optional?: boolean;
   /**
+   * If true, sort packages by dependency order (topological sort) before running.
+   * Ensures upstream packages are processed first so their build artifacts (e.g. .d.ts)
+   * are available for downstream packages. Useful for build checks.
+   */
+  ordered?: boolean;
+  /**
    * Where to execute the command:
    * - "perPackage" (default): run in each discovered package directory
    * - "scopePath": run once in the sub-repo root (e.g. platform/kb-labs-cli/)

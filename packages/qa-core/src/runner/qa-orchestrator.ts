@@ -1,4 +1,4 @@
-import type { QARunOptions, QAResults, QARunResult, CheckResult } from '@kb-labs/qa-contracts';
+import type { QARunOptions, QAResults, QARunResult, SubmoduleInfo, WorkspacePackage } from '@kb-labs/qa-contracts';
 import { getWorkspacePackages } from './workspace.js';
 import { runCustomChecks } from './custom-check-runner.js';
 import { loadCache, saveCache, updateCacheEntry } from './cache.js';
@@ -8,8 +8,43 @@ import { runTypeCheck } from './type-runner.js';
 import { runTestCheck } from './test-runner.js';
 import { saveLastRun } from './last-run-store.js';
 
-function emptyResult(): CheckResult {
-  return { passed: [], failed: [], skipped: [], errors: {} };
+const SKIP_ALIASES: Record<string, string> = {
+  types: 'typecheck',
+  'type-check': 'typecheck',
+  tests: 'test',
+};
+
+function runBuiltinChecks(
+  options: QARunOptions,
+  packages: WorkspacePackage[],
+  skipSet: Set<string>,
+  results: QAResults,
+): void {
+  const { rootDir, noCache } = options;
+  if (!skipSet.has('build')) {
+    results.build = runBuildCheck({
+      rootDir, packages, noCache,
+      onProgress: (pkg, status, durationMs) => options.onProgress?.('build', pkg, status, durationMs),
+    });
+  }
+  if (!skipSet.has('lint')) {
+    results.lint = runLintCheck({
+      rootDir, packages,
+      onProgress: (pkg, status, durationMs) => options.onProgress?.('lint', pkg, status, durationMs),
+    });
+  }
+  if (!skipSet.has('typecheck')) {
+    results.typeCheck = runTypeCheck({
+      rootDir, packages,
+      onProgress: (pkg, status, durationMs) => options.onProgress?.('typeCheck', pkg, status, durationMs),
+    });
+  }
+  if (!skipSet.has('test')) {
+    results.test = runTestCheck({
+      rootDir, packages,
+      onProgress: (pkg, status, durationMs) => options.onProgress?.('test', pkg, status, durationMs),
+    });
+  }
 }
 
 /**
@@ -20,79 +55,27 @@ function emptyResult(): CheckResult {
 export async function runQA(options: QARunOptions): Promise<QARunResult> {
   const { rootDir, noCache } = options;
 
-  // Normalise skip list: lowercase, support aliases
-  const SKIP_ALIASES: Record<string, string> = {
-    types: 'typecheck',
-    'type-check': 'typecheck',
-    tests: 'test',
-  };
   const skipSet = new Set(
     (options.skipChecks ?? []).map(s => SKIP_ALIASES[s.toLowerCase()] ?? s.toLowerCase()),
   );
 
-  const filter = {
-    package: options.package,
-    repo: options.repo,
-    scope: options.scope,
-  };
-
+  const filter = { package: options.package, repo: options.repo, scope: options.scope };
   const packages = getWorkspacePackages(rootDir, filter, options.packagesConfig);
   let cache = noCache ? {} : loadCache(rootDir);
 
   const results: QAResults = {};
 
   if (options.checks && options.checks.length > 0) {
-    // Config-driven checks mode — filter out skipped check IDs
     const activeChecks = skipSet.size > 0
       ? options.checks.filter(c => !skipSet.has(c.id.toLowerCase()))
       : options.checks;
-
-    const checkResults = runCustomChecks(
-      activeChecks,
-      packages,
-      rootDir,
-      (checkId, pkg, status) => {
-        options.onProgress?.(checkId, pkg, status);
-      },
-    );
-    Object.assign(results, checkResults);
+    Object.assign(results, runCustomChecks(activeChecks, packages, rootDir,
+      (checkId, pkg, status, durationMs) => { options.onProgress?.(checkId, pkg, status, durationMs); },
+    ));
   } else {
-    // Built-in runners mode — canonical IDs: build, lint, typecheck, test
-    if (!skipSet.has('build')) {
-      results.build = runBuildCheck({
-        rootDir,
-        packages,
-        noCache,
-        onProgress: (pkg, status) => options.onProgress?.('build', pkg, status),
-      });
-    }
-
-    if (!skipSet.has('lint')) {
-      results.lint = runLintCheck({
-        rootDir,
-        packages,
-        onProgress: (pkg, status) => options.onProgress?.('lint', pkg, status),
-      });
-    }
-
-    if (!skipSet.has('typecheck')) {
-      results.typeCheck = runTypeCheck({
-        rootDir,
-        packages,
-        onProgress: (pkg, status) => options.onProgress?.('typeCheck', pkg, status),
-      });
-    }
-
-    if (!skipSet.has('test')) {
-      results.test = runTestCheck({
-        rootDir,
-        packages,
-        onProgress: (pkg, status) => options.onProgress?.('test', pkg, status),
-      });
-    }
+    runBuiltinChecks(options, packages, skipSet, results);
   }
 
-  // Update cache with current hashes
   if (!noCache) {
     for (const pkg of packages) {
       cache = updateCacheEntry(pkg.dir, pkg.name, cache);
@@ -100,8 +83,7 @@ export async function runQA(options: QARunOptions): Promise<QARunResult> {
     saveCache(rootDir, cache);
   }
 
-  // Persist full results for the details endpoint
-  const submodules: Record<string, import('@kb-labs/qa-contracts').SubmoduleInfo> = {};
+  const submodules: Record<string, SubmoduleInfo> = {};
   for (const pkg of packages) {
     if (pkg.submodule && !submodules[pkg.repo]) {
       submodules[pkg.repo] = pkg.submodule;
