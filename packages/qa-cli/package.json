@@ -1,8 +1,7 @@
 {
   "name": "@kb-labs/qa-cli",
-  "version": "0.1.0",
+  "version": "0.5.0",
   "type": "module",
-  "private": true,
   "description": "CLI commands for KB Labs QA Plugin — qa:run, qa:save, qa:history, qa:trends, qa:regressions, baseline:update, baseline:status.",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
