@@ -1,6 +1,6 @@
 {
   "name": "@kb-labs/qa-plugin",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "KB Labs QA Plugin — automated quality checks, baseline tracking, and regression detection for the KB Labs ecosystem.",
   "type": "module",
   "author": {
